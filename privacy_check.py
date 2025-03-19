@@ -483,31 +483,35 @@ class PrivacyChecker:
 
 
 def main():
-    excludes = ['.tmp', '.exe', '.bin', '.dll', '.elf',
-                '.zip', '.rar', '.7z', '.gz', '.bz2', '.tar',
-                '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.tif', '.svg'
-                ]
+    excludes_ext = {
+        '.tmp', '.exe', '.bin', '.dll', '.elf',
+        '.zip', '.rar', '.7z', '.gz', '.bz2', '.tar',
+        '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.tif', '.woff', '.woff2'
+    }
 
     parser = argparse.ArgumentParser(description='Privacy information detection tool')
     parser.add_argument('-r', '--rule-file', default='config.yaml',
                         help='Path to configuration file (default: config.yaml)')
     parser.add_argument('-t', '--target', required=True, help='Target file or directory to scan')
-    parser.add_argument('-e', '--exclude-ext', nargs='+', default=excludes,
-                        help='File extensions to exclude (default: [.tmp])')
+    parser.add_argument('-e', '--exclude-ext', nargs='+', default=[],
+                        help=f'exclude file extensions (always add inner {excludes_ext})')
     parser.add_argument('-o', '--output', default=None, help='Output file path (default: output.json)')
     parser.add_argument('-w', '--workers', type=int, default=os.cpu_count(),
                         help='Number of worker threads (default: CPU count)')
     parser.add_argument('-s', '--sensitive-only', action='store_true', help='只扫描敏感文件规则')
     parser.add_argument('-l', '--limit-size', type=int, default=1, help='check file size limit x MB')
-    parser.add_argument('-S', '--save-cache', action='store_false', default=True, help='通过线程锁缓存文件 (默认: True)')
+    parser.add_argument('-S', '--save-cache', action='store_true', default=False,
+                        help='实时记录缓存文件, 建议大项目使用 (默认: False) 注意:会生成缓存文件!!!')
     parser.add_argument('-p', '--project', default='default_project', help='Project name for cache identification')
 
     args = parser.parse_args()
+    # 更新用户指定的后缀类型
+    excludes_ext.update(args.exclude_ext)
 
     checker = PrivacyChecker(
         project_name=args.project,
         rule_file=args.rule_file,
-        exclude_ext=args.exclude_ext,
+        exclude_ext=excludes_ext,
         sensitive_only=args.sensitive_only,
         limit_size=args.limit_size
     )
