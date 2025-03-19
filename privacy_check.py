@@ -208,73 +208,35 @@ def print_progress(completed_task, total_task, start_time):
           f"已用时长: {str(elapsed_delta)} 预计剩余: {str(remaining_delta)}", end='')
 
 
-def _load_config(config_path: str) -> Dict:
+def _load_yaml(config_path: str) -> Dict:
     with open(config_path, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f)
 
 
-def _read_whole_file(filepath: str) -> Tuple[str, str]:
+def read_file_safe(filepath: str) -> Tuple[str, str]:
     # 原有的文件读取逻辑保持不变
     try:
         with open(filepath, 'rb') as f:
             raw_data = f.read()
-            detected_encoding = file_encoding(filepath)
-    except Exception:
-        detected_encoding = 'utf-8'
-
-    encodings = [
-        detected_encoding,
-        'utf-8',
-        'gbk',
-        'gb2312',
-        'gb18030',
-        'big5',
-        'iso-8859-1',
-        'ascii',
-        'latin1',
-        'utf-16',
-        'utf-32'
-    ]
-
-    for encoding in encodings:
-        try:
-            return raw_data.decode(encoding), encoding
-        except (UnicodeDecodeError, LookupError):
-            continue
-
-    return raw_data.decode('utf-8', errors='ignore'), 'utf-8-forced'
-
-
-def _read_file_safe(filepath: str, chunk_size: int = 1024 * 1024, ) -> Tuple[str, str]:
-    # 获取文件大小
-    file_size = os.path.getsize(filepath)
-
-    # 如果文件小于chunk_size，直接读取
-    if file_size <= chunk_size:
-        return _read_whole_file(filepath)
-
-    # 对大文件进行分块处理
-    try:
-        with open(filepath, 'rb') as f:
-            # 先读取一小块来检测编码
-            sample = f.read(4096)
-            encoding = string_encoding(sample)
-
-            # 重置文件指针
-            f.seek(0)
-            content = ''
-            chunk = True  # 初始化chunk变量，确保进入循环
-            while chunk:
-                chunk = f.read(chunk_size)  # 读取文件块
-                if not chunk:  # 如果没有读取到数据，则退出循环
-                    break
+            encodings = [
+                'utf-8',
+                'gbk',
+                'gb2312',
+                'gb18030',
+                'big5',
+                'iso-8859-1',
+                'ascii',
+                'latin1',
+                'utf-16',
+                'utf-32'
+            ]
+            for encoding in encodings:
                 try:
-                    content += chunk.decode(encoding, errors='ignore')  # 尝试按指定编码解码
-                except UnicodeDecodeError:
-                    content += chunk.decode('utf-8', errors='ignore')  # 解码失败则尝试使用'utf-8'编码
-            return content, encoding
+                    return raw_data.decode(encoding), encoding
+                except (UnicodeDecodeError, LookupError):
+                    continue
     except Exception:
-        return _read_whole_file(filepath)
+        return raw_data.decode('utf-8', errors='ignore'), 'utf-8-forced'
 
 
 def init_cacha_dict():
@@ -303,7 +265,7 @@ class PrivacyChecker:
     def __init__(self, project_name: str, rule_file: str, exclude_ext: List[str], sensitive_only: bool = False,
                  limit_size: int = 1):
 
-        self.rule_file = _load_config(rule_file)
+        self.rule_file = _load_yaml(rule_file)
         self.exclude_ext = exclude_ext
         self.limit_size = limit_size
         self.sensitive_only = sensitive_only  # 新增属性
@@ -490,7 +452,7 @@ class PrivacyChecker:
                                 rules_result = self._apply_rule(rule, chunk, group_name, filepath)
                                 file_results.extend(rules_result)
             else:
-                content, _ = _read_file_safe(filepath)
+                content, _ = read_file_safe(filepath)
                 # 应用规则到文件内容
                 for group_name, rule_list in apply_rules.items():
                     for rule in rule_list:
