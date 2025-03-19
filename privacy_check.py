@@ -186,7 +186,8 @@ def string_encoding(data: bytes):
             return code
         except UnicodeDecodeError:
             continue
-    return 'unknown'
+    # 什么编码都没获取到 按UTF-8处理
+    return 'UTF-8'
 
 
 def file_encoding(file_path: str):
@@ -287,6 +288,15 @@ def load_json(json_path: str, encoding: str = 'utf-8') -> Any:
             return json.load(f)
     except Exception as e:
         raise RuntimeError(f"加载 JSON 失败: {str(e)}")
+
+
+def read_in_chunks(file_object, chunk_size=1024 * 1024):
+    """生成器函数，用于分块读取文件"""
+    while True:
+        data = file_object.read(chunk_size)
+        if not data:
+            break
+        yield data
 
 
 class PrivacyChecker:
@@ -462,21 +472,30 @@ class PrivacyChecker:
             print(f"\n扫描完成！总用时: {str(timedelta(seconds=int(total_time)))} 发现漏洞: {len(self.scan_results)} 个")
             return self.scan_results
 
-    def _apply_rules(self, filepath: str, apply_rules: dict) -> tuple[str, Any]:
+    def _apply_rules(self, filepath: str, apply_rules: dict, chunk_mode=False) -> tuple[str, Any]:
         file_results = []
 
         # 检查缓存
         old_cache_result = self.old_cache_data[CACHE_RESULT]
         if filepath in old_cache_result:
             return filepath, old_cache_result.get(filepath)
-
         try:
-            # 整理出要利用的规则列表
-            content, _ = _read_file_safe(filepath)
-            for group_name, rule_list in apply_rules.items():
-                for rule in rule_list:
-                    rules_result = self._apply_rule(rule, content, group_name, filepath)
-                    file_results.extend(rules_result)
+            if chunk_mode:
+                chunk_size = 1024 * 1024  # 每次读取1MB的数据
+                with open(filepath, 'r', encoding=file_encoding(filepath), errors="ignore") as file:
+                    for chunk in read_in_chunks(file, chunk_size):
+                        # 应用所有规则到当前数据块
+                        for group_name, rule_list in apply_rules.items():
+                            for rule in rule_list:
+                                rules_result = self._apply_rule(rule, chunk, group_name, filepath)
+                                file_results.extend(rules_result)
+            else:
+                content, _ = _read_file_safe(filepath)
+                # 应用规则到文件内容
+                for group_name, rule_list in apply_rules.items():
+                    for rule in rule_list:
+                        rules_result = self._apply_rule(rule, content, group_name, filepath)
+                        file_results.extend(rules_result)
         except Exception as e:
             print(f"Error processing file {filepath}: {str(e)}")
         return filepath, file_results
