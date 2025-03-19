@@ -382,7 +382,7 @@ class PrivacyChecker:
             rule_results.append(result)
         return rule_results
 
-    def scan(self, target_path: str, max_workers: int = None, save_cache=True):
+    def scan(self, target_path: str, max_workers: int = None, save_cache=True, chunk_mode=False):
         # 显示本次扫描使用的规则
         self.print_used_rules()
         # 获取需要扫描的文件
@@ -400,7 +400,7 @@ class PrivacyChecker:
         start_time = time.time()
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # 开始提交任务
-            futures = [executor.submit(self._apply_rules, file, rules_to_apply) for file in files_to_scan]
+            futures = [executor.submit(self._apply_rules, file, rules_to_apply, chunk_mode) for file in files_to_scan]
             # 进行结果接受
             for completed, future in enumerate(futures):
                 filepath, check_results = future.result()
@@ -434,7 +434,7 @@ class PrivacyChecker:
             print(f"\n扫描完成！总用时: {str(timedelta(seconds=int(total_time)))} 发现漏洞: {len(self.scan_results)} 个")
             return self.scan_results
 
-    def _apply_rules(self, filepath: str, apply_rules: dict, chunk_mode=False) -> tuple[str, Any]:
+    def _apply_rules(self, filepath: str, apply_rules: dict, chunk_mode: bool) -> tuple[str, Any]:
         file_results = []
 
         # 检查缓存
@@ -474,16 +474,22 @@ def main():
     parser.add_argument('-r', '--rule-file', default='config.yaml',
                         help='Path to configuration file (default: config.yaml)')
     parser.add_argument('-t', '--target', required=True, help='Target file or directory to scan')
-    parser.add_argument('-e', '--exclude-ext', nargs='+', default=[],
-                        help=f'exclude file extensions (always add inner {excludes_ext})')
+    parser.add_argument('-p', '--project', default='default_project',
+                        help='Project affect default output name and cache file name')
     parser.add_argument('-o', '--output', default=None, help='Output file path (default: output.json)')
+    # 性能配置
     parser.add_argument('-w', '--workers', type=int, default=os.cpu_count(),
                         help='Number of worker threads (default: CPU count)')
-    parser.add_argument('-s', '--sensitive-only', action='store_true', help='只扫描敏感文件规则')
     parser.add_argument('-l', '--limit-size', type=int, default=1, help='check file size limit x MB')
-    parser.add_argument('-S', '--save-cache', action='store_true', default=False,
-                        help='实时记录缓存文件, 建议大项目使用 (默认: False) 注意:会生成缓存文件!!!')
-    parser.add_argument('-p', '--project', default='default_project', help='Project name for cache identification')
+    parser.add_argument('-s', '--save-cache', action='store_true', default=False,
+                        help='定时缓存扫描结果, 建议大项目使用 (默认: False) 注意:会生成缓存文件!!!')
+    parser.add_argument('-k', '--chunk-mode', action='store_true', default=False,
+                        help='使用chunk模式读取文件,运行时间延长,内存占用减小 (默认: False) ')
+    # 过滤配置
+    parser.add_argument('-e', '--exclude-ext', nargs='+', default=[],
+                        help=f'exclude file extensions (always add inner {excludes_ext})')
+    # 筛选配置
+    parser.add_argument('-S', '--sensitive-only', action='store_true', help='只扫描敏感规则')
 
     args = parser.parse_args()
     # 更新用户指定的后缀类型
@@ -497,7 +503,8 @@ def main():
         limit_size=args.limit_size
     )
 
-    check_results = checker.scan(args.target, max_workers=args.workers, save_cache=args.save_cache)
+    check_results = checker.scan(args.target, max_workers=args.workers,
+                                 save_cache=args.save_cache, chunk_mode=args.chunk_mode)
 
     # 保存分析结果
     if check_results:
