@@ -4,3 +4,4 @@
 *.json
 /dist
 *.spec
+/build

@@ -79,6 +79,6 @@ def safe_load(f):
     return parse_yaml(f.read().strip())
 
 if __name__ == '__main__':
-    sample_yaml = open('config.yaml').read()
+    sample_yaml = open('privacy_check.yaml').read()
     data = parse_yaml(sample_yaml.strip())
     print(data)

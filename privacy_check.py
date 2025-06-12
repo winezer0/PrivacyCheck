@@ -471,8 +471,8 @@ def main():
     }
 
     parser = argparse.ArgumentParser(description='Privacy information detection tool')
-    parser.add_argument('-r', '--rule-file', default='config.yaml',
-                        help='Path to configuration file (default: config.yaml)')
+    parser.add_argument('-r', '--rule-file', default='privacy_check.yaml',
+                        help='Path to configuration file (default: privacy_check.yaml)')
     parser.add_argument('-t', '--target', required=True, help='Target file or directory to scan')
     parser.add_argument('-p', '--project', default='default_project',
                         help='Project affect default output name and cache file name')
