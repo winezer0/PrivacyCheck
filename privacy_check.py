@@ -208,10 +208,13 @@ def print_progress(completed_task, total_task, start_time):
           f"已用时长: {str(elapsed_delta)} 预计剩余: {str(remaining_delta)}", end='')
 
 
-def _load_yaml(config_path: str) -> Dict:
+def _load_rules_config(config_path: str) -> Dict:
     with open(config_path, 'r', encoding='utf-8') as f:
-        return yaml.safe_load(f)
-
+        config_info = yaml.safe_load(f)
+        # 当前输入的是原始HAE规则,需要提取rules节点信息
+        if isinstance(config_info, dict) and 'rules' in config_info.keys():
+            return config_info.get('rules')
+        return config_info
 
 def read_file_safe(filepath: str) -> Tuple[str, str]:
     # 原有的文件读取逻辑保持不变
@@ -265,11 +268,11 @@ class PrivacyChecker:
     def __init__(self, project_name: str, rule_file: str, exclude_ext: List[str], sensitive_only: bool = False,
                  limit_size: int = 1):
 
-        self.rule_file = _load_yaml(rule_file)
+        self.rules_info = _load_rules_config(rule_file)
         self.exclude_ext = exclude_ext
         self.limit_size = limit_size
         self.sensitive_only = sensitive_only  # 新增属性
-        validate_rules(self.rule_file, self.sensitive_only)
+        validate_rules(self.rules_info, self.sensitive_only)
         self.scan_results = []
 
         # 缓存信息
@@ -295,7 +298,7 @@ class PrivacyChecker:
 
     def print_used_rules(self):
         print("\n本次扫描使用的规则:")
-        config = self.rule_file
+        config = self.rules_info
         sensitive_only = self.sensitive_only
         for group in config:
             group_name = group.get('group', '')
@@ -396,7 +399,7 @@ class PrivacyChecker:
         print(f"使用线程数: {max_workers if max_workers else '系统CPU核心数'}")
 
         # 进行实际使用的规则提取
-        rules_to_apply = self._prepare_rules(self.rule_file, self.sensitive_only)
+        rules_to_apply = self._prepare_rules(self.rules_info, self.sensitive_only)
         start_time = time.time()
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # 开始提交任务
