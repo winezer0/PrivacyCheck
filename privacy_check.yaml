@@ -5,8 +5,12 @@
     f_regex: (((access)(|-|_)(key)(|-|_)(id|secret))|(LTAI[a-z0-9]{12,20}))
     sensitive: true
     ignore_case: true
+    context_left: 50
+    context_right: 50
   - name: Windows File/Dir Path
     loaded: true
     f_regex: '[^\w](([a-zA-Z]:\\(?:\w+\\?)*)|([a-zA-Z]:\\(?:\w+\\)*\w+\.\w+))'
     sensitive: false
     ignore_case: true
+    context_left: 0
+    context_right: 0

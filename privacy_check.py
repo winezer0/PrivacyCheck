@@ -139,7 +139,7 @@ def validate_rules(rules, sensitive_only) -> None:
                 invalid_rules.append({
                     'group': group_name,
                     'name': rule['name'],
-                    'regex': rule['f_regex'],
+                    'f_regex': rule['f_regex'],
                     'error': str(e)
                 })
 
@@ -148,8 +148,8 @@ def validate_rules(rules, sensitive_only) -> None:
         for rule in invalid_rules:
             print(f"\n规则组: {rule['group']}")
             print(f"规则名: {rule['name']}")
-            if 'regex' in rule:
-                print(f"正则表达式: {rule['regex']}")
+            if 'f_regex' in rule:
+                print(f"正则表达式: {rule['f_regex']}")
             print(f"错误信息: {rule['error']}")
         print("\n请修复以上规则后再运行扫描。")
         exit(1)
@@ -378,11 +378,17 @@ class PrivacyChecker:
 
     @classmethod
     def _apply_rule(cls, rule: Dict, content: str, group_name: str, filepath: str) -> List[Dict]:
-        rule_is_sensitive = rule.get('sensitive', False)
-        rule_name = rule.get('name')
-        rule_regex = rule.get('f_regex')
+        rule_results = []
+
+        rule_name = rule.get('name', None)
+        rule_regex = rule.get('f_regex', None)
         rule_ignore_case = rule.get('ignore_case', True)
+        if not rule_regex:
+            print(f"Error rule. The key [f_regex] content is empty... -> {rule}")
+            return rule_results
+
         # 根据是否为敏感信息设置默认上下文长度 非敏感信息获取的情况下不需要扩充上下文 敏感信息的情况下扩充上下文长度
+        rule_is_sensitive = rule.get('sensitive', False)
         context_default = 50 if rule_is_sensitive else 0
         rule_context_left = rule.get('context_left', context_default)
         rule_context_right = rule.get('context_right', context_default)
@@ -391,7 +397,6 @@ class PrivacyChecker:
         pattern = re.compile(rule_regex, flags)
         matches = pattern.finditer(content)
 
-        rule_results = []
         for match in matches:
             matched_text = match.group()
             if len(matched_text.strip()) <= 5:
