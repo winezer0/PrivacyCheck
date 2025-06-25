@@ -346,3 +346,11 @@ def write_dict_to_json(file_path, data, mode="w+", encoding="utf-8"):
             json_file.write(formatted_json)
     except Exception as e:
         print(f"写入 JSON 文件失败: {e}")
+
+
+def strip_string(val):
+    if isinstance(val, str):
+        val = val.strip("'\"()[]{} \n\r\t")
+        val = val.replace(r"\/", "/")
+        return val
+    return val

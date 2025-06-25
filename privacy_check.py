@@ -11,7 +11,7 @@ from typing import List, Dict, Tuple, Any
 
 from utils import validate_rules, get_files_with_filter, file_encoding, print_progress, \
     _load_rules_config, read_file_safe, load_json, read_in_chunks, print_rules_info, init_cacha_dict, CACHE_RESULT, \
-    CACHE_UPDATE, save_cache_if_needed, write_dict_to_csv, write_dict_to_json
+    CACHE_UPDATE, save_cache_if_needed, write_dict_to_csv, write_dict_to_json, strip_string
 
 
 class PrivacyChecker:
@@ -249,16 +249,20 @@ def main():
 
     # 保存分析结果
     if check_results:
+        # 格式化结果值
+        if args.format_results:
+            check_results = [{k: strip_string(v) for k, v in row.items()} for row in check_results]
+
         if output_keys:
             filtered_results = [{k: item.get(k) for k in output_keys if k in item} for item in check_results]
             check_results = filtered_results or check_results
 
         if 'csv' in args.output_format:
-            output_file = args.output or f"{args.project}.csv"
+            output_file = args.output_file or f"{args.project}.csv"
             write_dict_to_csv(output_file, check_results, mode="w+", encoding="utf-8")
             print(f"分析结果(CSV格式)已保存至: {output_file}")
         else:
-            output_file = args.output or f"{args.project}.json"
+            output_file = args.output_file or f"{args.project}.json"
             write_dict_to_json(output_file, check_results, mode="w+", encoding="utf-8")
             print(f"分析结果(Json格式)已保存至: {output_file}")
 
@@ -283,19 +287,20 @@ def args_parser(excludes_ext, allowed_keys):
     # 过滤配置
     parser.add_argument('-e', '--exclude-ext', dest='exclude_ext', nargs='+', default=[],
                         help=f'排除文件扩展名(始终添加内置扩展名: {excludes_ext})')
-    # 筛选配置
+    # 筛选规则
     parser.add_argument('-S', '--sensitive', dest='sensitive_only', action='store_true',
                         help='只启用敏感信息规则 (sensitive: true) 默认False')
-    # 新增规则名称过滤参数
     parser.add_argument('-a', '--allow-names', dest='allow_names', type=str, default=[],
                         help='仅启用指定名称关键字的规则, 多个规则名用空格分隔')
-    # 新增输出键参数
-    parser.add_argument('-o', '--output', dest='output', default=None,
+    # 输出配置
+    parser.add_argument('-o', '--output-file', dest='output_file', default=None,
                         help='输出文件路径(默认：{project_name}.json)')
     parser.add_argument('-O', '--output-keys', dest='output_keys', nargs='+', default=[],
-                        help=f'指定输出结果的键，直接以空格分隔多个键，如 -O file match, 允许的键:{allowed_keys}')
-    parser.add_argument('-F','--output-format', dest='output_format', type=str, default='json', choices=['json', 'csv'],
+                        help=f'仅输出结果中指定键的值，多个键使用空格分隔, 允许的键: {allowed_keys}')
+    parser.add_argument('-f','--output-format', dest='output_format', type=str, default='json', choices=['json', 'csv'],
                         help='指定输出文件格式: json 或 csv, 默认: json')
+    parser.add_argument('-F', '--format-results', dest='format_results', action='store_true', default=False,
+                        help='对输出结果的每个值进行格式化，去除引号、空格等符号, 默认: True')
     args = parser.parse_args()
     return args
 
