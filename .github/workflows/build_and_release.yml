@@ -7,9 +7,6 @@ on:
         description: '版本号 (例如: 0.3.0)'
         required: true
         default: '0.3.0'
-  push:
-    tags:
-      - 'v*'  # 当推送带v前缀的标签时触发
 
 # 添加全局权限设置
 permissions:
