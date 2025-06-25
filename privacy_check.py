@@ -8,278 +8,12 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta, datetime
 from typing import List, Dict, Tuple, Any
 
-import yaml
+from utils import save_cache_if_needed, validate_rules, get_files_with_filter, file_encoding, print_progress, \
+    _load_rules_config, read_file_safe, init_cacha_dict, load_json, read_in_chunks, print_used_rules
 
 # 　Cache FIlE Key
 CACHE_RESULT = "result"
 CACHE_UPDATE = "last_update"
-
-
-def dumps_json(data, indent=0, ensure_ascii=False, sort_keys=False, allow_nan=False) -> Tuple:
-    """
-    - indent (int or str): 缩进级别 输出格式化的JSON字符串 会导致性能卡顿
-    - ensure_ascii (bool): 如果为False，则允许输出非ASCII字符而不进行转义。
-    - sort_keys (bool): 如果为True，则字典的键将按字母顺序排序。
-    - allow_nan (bool): 如果为True，则允许 `NaN`, `Infinity`, `-Infinity` 等特殊浮点数值。
-    """
-    try:
-        json_string = json.dumps(data, indent=indent, ensure_ascii=ensure_ascii, sort_keys=sort_keys,
-                                 allow_nan=allow_nan)
-        return json_string, None
-    except Exception as e:
-        print(f"dumps json error: {e}")
-        return None, e
-
-
-def write_string(file_path: str, content: str, mode: str = 'w+', encoding: str = 'utf-8') -> Tuple:
-    try:
-        if content:
-            with open(file_path, mode, encoding=encoding) as file:
-                file.write(content)
-        return True, None
-    except IOError as e:
-        print(f"写入文件时发生错误: {e}")
-        return False, e
-
-
-def save_cache_if_needed(cache_file, cache_data, cache_time, last_cache_time, save_interval, force_store) -> Tuple:
-    """检查是否需要保存缓存"""
-    total_seconds = (cache_time - last_cache_time).total_seconds()
-    if force_store or (0 < save_interval <= total_seconds):
-        try:
-            # 根据数据类型分别处理
-            if isinstance(cache_data, (dict, list)):
-                # dump_status, dump_error = dump_json(cache_file, cache_data)
-                # 尝试copy看有没有缓存报错 没有用
-                # cache_copy = copy.deepcopy(cache_data)  # dictionary changed size during iteration
-                # 转换为json再进行写入
-                json_str, dump_error = dumps_json(cache_data)  # dictionary changed size during iteration
-                if dump_error:
-                    raise dump_error
-                if json_str:
-                    dump_status, dump_error = write_string(cache_file, json_str)
-                    if dump_error:
-                        raise dump_error
-            elif isinstance(cache_data, str):
-                dump_status, dump_error = write_string(cache_file, cache_data)
-                if dump_error:
-                    raise dump_error
-            else:
-                dump_error = TypeError(f"非预期的缓存格式类型:{type(cache_data)}")
-                if dump_error:
-                    raise dump_error
-            return True, None
-        except Exception as error:
-            print(f"\n保存缓存失败: {error}")
-            return False, error
-    else:
-        return False, None
-
-
-def file_is_larger(file_path, limit=1):
-    """判断指定路径的文件大小是否超过1MB。 """
-    # 获取文件大小，单位为字节
-    file_size = os.path.getsize(file_path)
-    # 1 MB 的字节数
-    one_mb_in_bytes = 1024 * 1024 * limit
-    # 比较文件大小是否超过1MB
-    return file_size > one_mb_in_bytes
-
-
-def validate_rules(rules, sensitive_only) -> None:
-    print("\n开始验证规则...")
-    invalid_rules = []
-    valid_rules_count = 0
-
-    if not isinstance(rules, list):
-        print("错误: 配置文件不是列表类型")
-        return
-
-    for group in rules:
-        if not isinstance(group, dict):
-            continue
-
-        group_name = group.get('group', '')
-        rule_list = group.get('rule', [])
-
-        if not isinstance(rule_list, list):
-            continue
-
-        for rule in rule_list:
-            if not isinstance(rule, dict):
-                continue
-
-            # 如果启用了仅敏感规则模式，跳过非敏感规则
-            if sensitive_only and not rule.get('sensitive', False):
-                continue
-
-            if not rule.get('loaded', True):
-                continue
-
-            valid_rules_count += 1
-            # 检查必要字段
-            required_fields = ['name', 'f_regex']
-            missing_fields = [field for field in required_fields if field not in rule]
-            if missing_fields:
-                invalid_rules.append({
-                    'group': group_name,
-                    'name': rule.get('name', 'Unknown'),
-                    'error': f'缺少必要字段: {", ".join(missing_fields)}'
-                })
-                continue
-
-            # 检查loaded字段(默认为True)
-            if not rule.get('loaded', True):
-                continue
-
-            # 验证正则表达式
-            try:
-                re.compile(rule['f_regex'])
-            except re.error as e:
-                invalid_rules.append({
-                    'group': group_name,
-                    'name': rule['name'],
-                    'f_regex': rule['f_regex'],
-                    'error': str(e)
-                })
-
-    if invalid_rules:
-        print("\n发现无效的规则:")
-        for rule in invalid_rules:
-            print(f"\n规则组: {rule['group']}")
-            print(f"规则名: {rule['name']}")
-            if 'f_regex' in rule:
-                print(f"正则表达式: {rule['f_regex']}")
-            print(f"错误信息: {rule['error']}")
-        print("\n请修复以上规则后再运行扫描。")
-        exit(1)
-    else:
-        print("规则验证通过！\n")
-
-
-def file_ext_in_black(filename: str, exclude_ext: List) -> bool:
-    return any(filename.endswith(ext) for ext in exclude_ext)
-
-
-def get_files_with_filter(target_path, exclude_ext, limit_size):
-    files_to_scan = []
-    for root, _, files in os.walk(target_path):
-        for file in files:
-            path = os.path.join(root, file)
-            if not file_ext_in_black(file, exclude_ext) and not file_is_larger(path, limit_size):
-                files_to_scan.append(path)
-    return files_to_scan
-
-
-def string_encoding(data: bytes):
-    # 简单的判断文件编码类型
-    # 说明：UTF兼容ISO8859-1和ASCII，GB18030兼容GBK，GBK兼容GB2312，GB2312兼容ASCII
-    CODES = ['UTF-8', 'GB18030', 'BIG5']
-    # UTF-8 BOM前缀字节
-    UTF_8_BOM = b'\xef\xbb\xbf'
-
-    # 遍历编码类型
-    for code in CODES:
-        try:
-            data.decode(encoding=code)
-            if 'UTF-8' == code and data.startswith(UTF_8_BOM):
-                return 'UTF-8-SIG'
-            return code
-        except UnicodeDecodeError:
-            continue
-    # 什么编码都没获取到 按UTF-8处理
-    return 'UTF-8'
-
-
-def file_encoding(file_path: str):
-    # 获取文件编码类型
-    if not os.path.exists(file_path):
-        return "utf-8"
-    with open(file_path, 'rb') as f:
-        return string_encoding(f.read())
-
-
-def print_progress(completed_task, total_task, start_time):
-    elapsed = time.time() - start_time
-    remaining = (elapsed / completed_task) * (total_task - completed_task) if completed_task > 0 else 0
-    # 将秒数转换为可读的时间格式
-    elapsed_delta = timedelta(seconds=int(elapsed))
-    remaining_delta = timedelta(seconds=int(remaining))
-    print(f"\r当前进度: {completed_task}/{total_task} ({(completed_task / total_task * 100):.2f}%) "
-          f"已用时长: {str(elapsed_delta)} 预计剩余: {str(remaining_delta)}", end='')
-
-
-def _load_rules_config(config_path: str) -> Dict:
-    with open(config_path, 'r', encoding='utf-8') as f:
-        config_info = yaml.safe_load(f)
-        # 当前输入的是原始HAE规则,需要提取rules节点信息
-        if isinstance(config_info, dict) and 'rules' in config_info.keys():
-            return config_info.get('rules')
-        return config_info
-
-
-def read_file_safe(filepath: str) -> Tuple[str, str]:
-    """
-    安全地读取文件内容并自动识别编码格式。
-
-    :param filepath: 文件路径
-    :return: (解码后的文本, 实际使用的编码)
-    """
-    encodings = [
-        'utf-8-sig',  # UTF-8 with BOM
-        'utf-8',
-        'gbk',
-        'gb2312',
-        'gb18030',
-        'big5',
-        'latin1',
-        'ascii',
-        'iso-8859-1',
-        'utf-16',
-        'utf-32'
-    ]
-
-    try:
-        with open(filepath, 'rb') as f:
-            raw_data = f.read()
-
-        # 尝试常用编码解码
-        for encoding in encodings:
-            try:
-                content = raw_data.decode(encoding)
-                return content, encoding
-            except (UnicodeDecodeError, LookupError):
-                continue
-
-        # 如果所有编码都失败，强制使用 UTF-8 忽略错误
-        content = raw_data.decode('utf-8', errors='replace')
-        return content, 'utf-8-forced'
-
-    except Exception as e:
-        print(f"[!] 读取文件时发生错误: {e}")
-        content = raw_data.decode('utf-8', errors='ignore')
-        return content, 'utf-8-ignore-forced'
-
-def init_cacha_dict():
-    return {CACHE_RESULT: {}, CACHE_UPDATE: None}
-
-
-def load_json(json_path: str, encoding: str = 'utf-8') -> Any:
-    """加载漏洞扫描结果"""
-    try:
-        with open(json_path, 'r', encoding=encoding) as f:
-            return json.load(f)
-    except Exception as e:
-        raise RuntimeError(f"加载 JSON 失败: {str(e)}")
-
-
-def read_in_chunks(file_object, chunk_size=1024 * 1024):
-    """生成器函数，用于分块读取文件"""
-    while True:
-        data = file_object.read(chunk_size)
-        if not data:
-            break
-        yield data
 
 
 class PrivacyChecker:
@@ -290,7 +24,7 @@ class PrivacyChecker:
         self.exclude_ext = exclude_ext
         self.limit_size = limit_size
         self.sensitive_only = sensitive_only  # 新增属性
-        validate_rules(self.rules_info, self.sensitive_only)
+        validate_rules(self.rules_info)       # 进行规则文件验证
         self.scan_results = []
 
         # 缓存信息
@@ -314,37 +48,15 @@ class PrivacyChecker:
             print(f"加载缓存失败: {e}")
         return cache
 
-    def print_used_rules(self):
-        print("\n本次扫描使用的规则:")
-        config = self.rules_info
-        sensitive_only = self.sensitive_only
-        for group in config:
-            group_name = group.get('group', '')
-            rule_list = group.get('rule', [])
-            for rule in rule_list:
-                if not isinstance(rule, dict):
-                    continue
-                if sensitive_only and not rule.get('sensitive', False):
-                    continue
-                if not rule.get('loaded', True):
-                    continue
-                name = rule.get('name', 'Unknown')
-                regex = rule.get('f_regex', '')
-                if len(regex) > 50:
-                    regex = regex[:47] + '...'
-
-                print(f"[{group_name}] {name}: {regex}")
-        print("\n" + "=" * 50)
-
     @classmethod
-    def _prepare_rules(cls, rules, sensitive_only) -> Dict[str, List[Dict]]:
+    def _preload_rules(cls, rules, sensitive_only) -> Dict[str, List[Dict]]:
         """
         整理出要利用的规则列表，返回dict，键为组名，值为规则列表。
         """
-        rules_to_apply = {}
+        loaded_rules = {}
 
         if not isinstance(rules, list):
-            return rules_to_apply
+            return loaded_rules
 
         for group in rules:
             if not isinstance(group, dict):
@@ -370,9 +82,9 @@ class PrivacyChecker:
                 filtered_rules.append(rule)
 
             if filtered_rules:
-                rules_to_apply[group_name] = filtered_rules
+                loaded_rules[group_name] = filtered_rules
 
-        return rules_to_apply
+        return loaded_rules
 
     @classmethod
     def _apply_rule(cls, rule: Dict, content: str, group_name: str, filepath: str) -> List[Dict]:
@@ -417,8 +129,7 @@ class PrivacyChecker:
         return rule_results
 
     def scan(self, target_path: str, max_workers: int = None, save_cache=True, chunk_mode=False):
-        # 显示本次扫描使用的规则
-        self.print_used_rules()
+
         # 获取需要扫描的文件
         if os.path.isfile(target_path):
             files_to_scan = [target_path]
@@ -430,7 +141,10 @@ class PrivacyChecker:
         print(f"使用线程数: {max_workers if max_workers else '系统CPU核心数'}")
 
         # 进行实际使用的规则提取
-        rules_to_apply = self._prepare_rules(self.rules_info, self.sensitive_only)
+        rules_to_apply = self._preload_rules(self.rules_info, self.sensitive_only)
+        # 显示本次扫描使用的规则
+        print_used_rules(rules_to_apply)
+
         start_time = time.time()
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # 开始提交任务
