@@ -299,7 +299,7 @@ def args_parser(excludes_ext, allowed_keys):
                         help=f'仅输出结果中指定键的值，多个键使用空格分隔, 允许的键: {allowed_keys}')
     parser.add_argument('-f','--output-format', dest='output_format', type=str, default='json', choices=['json', 'csv'],
                         help='指定输出文件格式: json 或 csv, 默认: json')
-    parser.add_argument('-F', '--format-results', dest='format_results', action='store_true', default=False,
+    parser.add_argument('-F', '--format-results', dest='format_results', action='store_false', default=True,
                         help='对输出结果的每个值进行格式化，去除引号、空格等符号, 默认: True')
     args = parser.parse_args()
     return args
