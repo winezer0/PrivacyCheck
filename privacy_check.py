@@ -528,7 +528,7 @@ def main():
     parser.add_argument('-e', '--exclude-ext', dest='exclude_ext', nargs='+', default=[],
                         help=f'排除文件扩展名(始终添加内置扩展名: {excludes_ext})')
     # 筛选配置
-    parser.add_argument('-S', '--sensitive-only', dest='sensitive_only', action='store_true',
+    parser.add_argument('-S', '--sensitive', dest='sensitive_only', action='store_true',
                         help='只启用敏感信息规则 (sensitive: true) 默认False')
 
     args = parser.parse_args()
