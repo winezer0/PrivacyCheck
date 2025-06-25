@@ -128,7 +128,7 @@ def validate_rules(rules, sensitive_only) -> None:
                 })
                 continue
 
-            # 检查loaded字段（默认为True）
+            # 检查loaded字段(默认为True)
             if not rule.get('loaded', True):
                 continue
 
@@ -216,8 +216,6 @@ def _load_rules_config(config_path: str) -> Dict:
         if isinstance(config_info, dict) and 'rules' in config_info.keys():
             return config_info.get('rules')
         return config_info
-
-
 
 
 def read_file_safe(filepath: str) -> Tuple[str, str]:
@@ -507,25 +505,31 @@ def main():
     }
 
     parser = argparse.ArgumentParser(description='Privacy information detection tool')
-    parser.add_argument('-r', '--rule-file', default='privacy_check.yaml',
-                        help='Path to configuration file (default: privacy_check.yaml)')
-    parser.add_argument('-t', '--target', required=True, help='Target file or directory to scan')
-    parser.add_argument('-p', '--project', default='default_project',
-                        help='Project affect default output name and cache file name')
-    parser.add_argument('-o', '--output', default=None, help='Output file path (default: output.json)')
+    parser.add_argument('-r', '--rules', dest='rule_file', default='privacy_check.yaml',
+                        help='规则文件的路径(默认值：privacy_check.yaml)')
+    parser.add_argument('-t', '--target', dest='target', required=True,
+                        help='待扫描的项目目标文件或目录')
+    parser.add_argument('-p', '--project', dest='project', default='default_project',
+                        help='项目名称, 影响默认输出文件名和缓存文件名')
+    parser.add_argument('-o', '--output', dest='output', default=None,
+                        help='输出文件路径(默认值：output.json)')
+
     # 性能配置
-    parser.add_argument('-w', '--workers', type=int, default=os.cpu_count(),
-                        help='Number of worker threads (default: CPU count)')
-    parser.add_argument('-l', '--limit-size', type=int, default=1, help='check file size limit x MB')
-    parser.add_argument('-s', '--save-cache', action='store_true', default=False,
+    parser.add_argument('-w', '--workers', dest='workers', type=int, default=os.cpu_count(),
+                        help='工作线程数量(默认值：CPU 核心数)')
+    parser.add_argument('-l', '--limit-size', dest='limit_size', type=int, default=5,
+                        help='检查文件大小限制 不超过 limit_size M')
+    parser.add_argument('-s', '--save-cache', dest='save_cache', action='store_true', default=False,
                         help='定时缓存扫描结果, 建议大项目使用 (默认: False) 注意:会生成缓存文件!!!')
-    parser.add_argument('-k', '--chunk-mode', action='store_true', default=False,
+    parser.add_argument('-k', '--chunk-mode', dest='chunk_mode', action='store_true', default=False,
                         help='使用chunk模式读取文件,运行时间延长,内存占用减小 (默认: False) ')
+
     # 过滤配置
-    parser.add_argument('-e', '--exclude-ext', nargs='+', default=[],
-                        help=f'exclude file extensions (always add inner {excludes_ext})')
+    parser.add_argument('-e', '--exclude-ext', dest='exclude_ext', nargs='+', default=[],
+                        help=f'排除文件扩展名(始终添加内置扩展名: {excludes_ext})')
     # 筛选配置
-    parser.add_argument('-S', '--sensitive-only', action='store_true', help='只扫描敏感规则')
+    parser.add_argument('-S', '--sensitive-only', dest='sensitive_only', action='store_true',
+                        help='只启用敏感信息规则 (sensitive: true) 默认False')
 
     args = parser.parse_args()
     # 更新用户指定的后缀类型
@@ -539,8 +543,10 @@ def main():
         limit_size=args.limit_size
     )
 
-    check_results = checker.scan(args.target, max_workers=args.workers,
-                                 save_cache=args.save_cache, chunk_mode=args.chunk_mode)
+    check_results = checker.scan(args.target,
+                                 max_workers=args.workers,
+                                 save_cache=args.save_cache,
+                                 chunk_mode=args.chunk_mode)
 
     # 保存分析结果
     if check_results:

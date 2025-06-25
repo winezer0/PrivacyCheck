@@ -4,7 +4,7 @@
 
 
 ## 适用场景
-1. 本地 网站|小程序|HTML 源码敏感配置审计（类似HAE提取）
+1. 本地 网站|小程序|HTML 源码敏感配置审计(类似HAE提取)
 
 ## 程序优点 
 1. 直接复用HAE规则 (目前仅采用 name、f_regex、sensitive、loaded)
@@ -40,14 +40,14 @@
 | 参数 | 简写 | 描述 | 默认值 |
 |------|------|------|--------|
 | `--rule-file` | `-r` | 规则配置文件路径 | `privacy_check.yaml` |
-| `--target` | `-t` | 要扫描的目标文件或目录（必填） | 无 |
+| `--target` | `-t` | 要扫描的目标文件或目录(必填) | 无 |
 | `--project` | `-p` | 项目名称，影响默认输出文件名和缓存文件名 | 无 |
 | `--output` | `-o` | 输出文件路径 | `output.json` |
 | `--workers` | `-w` | 工作线程数 | CPU 核心数量 |
-| `--limit-size` | `-l` | 设置检查文件大小上限（单位：MB） | 无 |
-| `--save-cache` | `-s` | 定时缓存扫描结果，建议在大项目中使用（注意：会生成缓存文件） | False |
+| `--limit-size` | `-l` | 设置检查文件大小上限(单位：MB) | 无 |
+| `--save-cache` | `-s` | 定时缓存扫描结果，建议在大项目中使用(注意：会生成缓存文件) | False |
 | `--chunk-mode` | `-k` | 使用 chunk 模式读取文件，运行时间延长但内存占用减小 | False |
-| `--exclude-ext` | `-e` | 排除指定后缀的文件（默认已排除以下格式：{'.exe', '.bin', '.gif', '.woff', '.elf', '.bz2', '.gz', '.woff2', '.tar', '.zip', '.jpeg', '.jpg', '.tiff', '.dll', '.7z', '.png', '.tif', '.rar', '.tmp', '.bmp'}) | 无 |
+| `--exclude-ext` | `-e` | 排除指定后缀的文件(默认已排除以下格式：{'.exe', '.bin', '.gif', '.woff', '.elf', '.bz2', '.gz', '.woff2', '.tar', '.zip', '.jpeg', '.jpg', '.tiff', '.dll', '.7z', '.png', '.tif', '.rar', '.tmp', '.bmp'}) | 无 |
 | `--sensitive-only` | `-S` | 仅扫描敏感规则 | False |
 
 
