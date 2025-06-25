@@ -1,0 +1,118 @@
+name: 构建并发布可执行文件
+
+on:
+  workflow_dispatch:  # 支持手动触发
+  release:
+    types: [created]  # 在创建发布时触发
+
+jobs:
+  build:
+    name: 构建 ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        include:
+          - os: windows-latest
+            output_name: privacy_check.exe
+            asset_name: privacy_check_windows.exe
+          - os: ubuntu-latest
+            output_name: privacy_check
+            asset_name: privacy_check_linux
+
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+
+    - name: 设置Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        cache: 'pip'
+
+    - name: 安装依赖 (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+        # 安装项目依赖
+        if [ -f requirements.txt ]; then
+          pip install -r requirements.txt
+        else
+          # 根据项目导入安装必要依赖
+          pip install pyyaml
+        fi
+      shell: bash
+
+    - name: 安装依赖 (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+        # 安装项目依赖
+        if (Test-Path -Path "requirements.txt") {
+          pip install -r requirements.txt
+        } else {
+          # 根据项目导入安装必要依赖
+          pip install pyyaml
+        }
+      shell: pwsh
+
+    - name: 构建可执行文件 (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: pyinstaller -F privacy_check.py
+      
+    - name: 构建可执行文件 (Windows)
+      if: matrix.os == 'windows-latest'
+      run: pyinstaller -F privacy_check.py
+      
+    - name: 上传构建产物
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.asset_name }}
+        path: dist/${{ matrix.output_name }}
+        if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: success()
+
+    steps:
+    - name: 下载所有构建产物
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: 获取当前时间
+      id: time
+      uses: nanzm/get-time-action@master
+      with:
+        format: 'YYYY-MM-DD-HH-mm-ss'
+
+    - name: 创建发布 (手动触发时)
+      if: github.event_name == 'workflow_dispatch'
+      id: create_release_manual
+      uses: softprops/action-gh-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ steps.time.outputs.time }}
+        name: Release ${{ steps.time.outputs.time }}
+        draft: false
+        prerelease: false
+        files: |
+          artifacts/privacy_check_windows.exe/privacy_check.exe
+          artifacts/privacy_check_linux/privacy_check
+
+    - name: 上传到已有发布 (创建发布时)
+      if: github.event_name == 'release'
+      uses: softprops/action-gh-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref_name }}
+        files: |
+          artifacts/privacy_check_windows.exe/privacy_check.exe
+          artifacts/privacy_check_linux/privacy_check 
