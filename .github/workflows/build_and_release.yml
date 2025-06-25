@@ -1,4 +1,4 @@
-name: 构建并发布可执行文件
+name: build and release
 
 on:
   workflow_dispatch:  # 支持手动触发
