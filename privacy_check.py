@@ -15,16 +15,17 @@ from utils import validate_rules, get_files_with_filter, file_encoding, print_pr
 
 
 class PrivacyChecker:
-    def __init__(self, project_name: str, rule_file: str, exclude_ext: List[str], sensitive_only: bool = False,
-                 limit_size: int = 1):
+    def __init__(self, project_name: str, rule_file: str, exclude_ext: List[str],
+                 sensitive_only: bool = False, allow_names: List[str] = None, limit_size: int = 1):
         self.exclude_ext = exclude_ext
         self.limit_size = limit_size
         self.sensitive_only = sensitive_only  # 新增属性
         self.scan_results = []
+        self.allow_names = allow_names
 
         # 进行实际使用的规则提取
         load_rules = _load_rules_config(rule_file)
-        self.rules_info = self._filter_rules(load_rules, self.sensitive_only)
+        self.rules_info = self._filter_rules(load_rules, self.allow_names, self.sensitive_only)
         if not validate_rules(self.rules_info):
             sys.exit(1)
         print_rules_info(self.rules_info)
@@ -51,8 +52,9 @@ class PrivacyChecker:
         return cache
 
     @classmethod
-    def _filter_rules(cls, rules_info, sensitive_only) -> Dict[str, List[Dict]]:
+    def _filter_rules(cls, rules_info, allow_names: List[str], sensitive_only=False) -> Dict[str, List[Dict]]:
         """整理出要利用的规则列表，返回dict，{group: [{rule1},{rule2}...]}"""
+        allow_names = [x.strip() for x in allow_names if x.strip()] if allow_names else []
 
         loaded_rules = {}
         if not isinstance(rules_info, list):
@@ -80,7 +82,10 @@ class PrivacyChecker:
                 if sensitive_only and rule.get('sensitive', False) is False:
                     continue
                 # 排除没有加载的规则
-                if rule.get('loaded', True) is False or 'f_regex' not in rule:
+                if not rule.get('loaded', True) or 'f_regex' not in rule.keys():
+                    continue
+                # 按名称关键字过滤
+                if allow_names and not any(x in str(rule.get('name')).lower() for x in allow_names):
                     continue
                 filtered_rules.append(rule)
 
@@ -242,18 +247,20 @@ def main():
     # 筛选配置
     parser.add_argument('-S', '--sensitive', dest='sensitive_only', action='store_true',
                         help='只启用敏感信息规则 (sensitive: true) 默认False')
+    # 新增规则名称过滤参数
+    parser.add_argument('-a','--allow-names', dest='allow_names', type=str, default=[],
+                        help='仅启用指定名称关键字的规则, 多个规则名用空格分隔')
 
     args = parser.parse_args()
     # 更新用户指定的后缀类型
     excludes_ext.update(args.exclude_ext)
 
-    checker = PrivacyChecker(
-        project_name=args.project,
-        rule_file=args.rule_file,
-        exclude_ext=excludes_ext,
-        sensitive_only=args.sensitive_only,
-        limit_size=args.limit_size
-    )
+    checker = PrivacyChecker(project_name=args.project,
+                             rule_file=args.rule_file,
+                             exclude_ext=excludes_ext,
+                             sensitive_only=args.sensitive_only,
+                             allow_names=args.allow_names,
+                             limit_size=args.limit_size)
 
     check_results = checker.scan(args.target,
                                  max_workers=args.workers,
