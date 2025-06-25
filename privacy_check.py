@@ -221,6 +221,9 @@ def main():
         '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.tif', '.woff', '.woff2'
     }
 
+    allowed_keys = {"file", "group", "rule_name", "match", "context", "position", "line_number", "sensitive"}
+
+
     parser = argparse.ArgumentParser(description='Privacy information detection tool')
     parser.add_argument('-r', '--rules', dest='rule_file', default='privacy_check.yaml',
                         help='规则文件的路径(默认值：privacy_check.yaml)')
@@ -228,8 +231,6 @@ def main():
                         help='待扫描的项目目标文件或目录')
     parser.add_argument('-p', '--project', dest='project', default='default_project',
                         help='项目名称, 影响默认输出文件名和缓存文件名')
-    parser.add_argument('-o', '--output', dest='output', default=None,
-                        help='输出文件路径(默认值：output.json)')
 
     # 性能配置
     parser.add_argument('-w', '--workers', dest='workers', type=int, default=os.cpu_count(),
@@ -250,10 +251,23 @@ def main():
     # 新增规则名称过滤参数
     parser.add_argument('-a','--allow-names', dest='allow_names', type=str, default=[],
                         help='仅启用指定名称关键字的规则, 多个规则名用空格分隔')
+    # 新增输出键参数
+    parser.add_argument('-o', '--output', dest='output', default=None,
+                        help='输出文件路径(默认：{project_name}.json)')
+    parser.add_argument('-O','--output-keys', dest='output_keys', nargs='+', default=[],
+                        help=f'指定输出结果的键，直接以空格分隔多个键，如 -O file match, 允许的键:{allowed_keys}')
 
     args = parser.parse_args()
     # 更新用户指定的后缀类型
     excludes_ext.update(args.exclude_ext)
+
+    # 校验 output_keys 合法性
+    output_keys = args.output_keys or []
+    if output_keys:
+        invalid_keys = [k for k in output_keys if k not in allowed_keys]
+        if invalid_keys:
+            print(f"[错误] --output-keys 存在非法字段: {invalid_keys} 仅允许以下字段: {sorted(allowed_keys)}")
+            sys.exit(1)
 
     checker = PrivacyChecker(project_name=args.project,
                              rule_file=args.rule_file,
@@ -270,6 +284,9 @@ def main():
     # 保存分析结果
     if check_results:
         output_file = args.output or f"{args.project}.json"
+        if output_keys:
+            check_results = [{k: item.get(k) for k in output_keys if k in item} for item in check_results]
+
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(check_results, f, ensure_ascii=False, indent=2)
             print(f"分析结果已保存至: {output_file}")
