@@ -5,6 +5,10 @@ on:
   release:
     types: [created]  # 在创建发布时触发
 
+# 添加全局权限设置
+permissions:
+  contents: write  # 明确给予写入仓库内容的权限
+
 jobs:
   build:
     name: 构建 ${{ matrix.os }}
@@ -78,6 +82,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: success()
+    # 添加发布任务的权限
+    permissions:
+      contents: write  # 明确给予写入仓库内容的权限
 
     steps:
     - name: 下载所有构建产物
@@ -95,8 +102,6 @@ jobs:
       if: github.event_name == 'workflow_dispatch'
       id: create_release_manual
       uses: softprops/action-gh-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: v${{ steps.time.outputs.time }}
         name: Release ${{ steps.time.outputs.time }}
@@ -109,8 +114,6 @@ jobs:
     - name: 上传到已有发布 (创建发布时)
       if: github.event_name == 'release'
       uses: softprops/action-gh-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ github.ref_name }}
         files: |
