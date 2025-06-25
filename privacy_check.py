@@ -11,7 +11,7 @@ from typing import List, Dict, Tuple, Any
 
 from utils import validate_rules, get_files_with_filter, file_encoding, print_progress, \
     _load_rules_config, read_file_safe, load_json, read_in_chunks, print_rules_info, init_cacha_dict, CACHE_RESULT, \
-    CACHE_UPDATE, save_cache_if_needed
+    CACHE_UPDATE, save_cache_if_needed, write_dict_to_csv, write_dict_to_json
 
 
 class PrivacyChecker:
@@ -249,13 +249,18 @@ def main():
 
     # 保存分析结果
     if check_results:
-        output_file = args.output or f"{args.project}.json"
         if output_keys:
-            check_results = [{k: item.get(k) for k in output_keys if k in item} for item in check_results]
+            filtered_results = [{k: item.get(k) for k in output_keys if k in item} for item in check_results]
+            check_results = filtered_results or check_results
 
-        with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump(check_results, f, ensure_ascii=False, indent=2)
-            print(f"分析结果已保存至: {output_file}")
+        if 'csv' in args.output_format:
+            output_file = args.output or f"{args.project}.csv"
+            write_dict_to_csv(output_file, check_results, mode="w+", encoding="utf-8")
+            print(f"分析结果(CSV格式)已保存至: {output_file}")
+        else:
+            output_file = args.output or f"{args.project}.json"
+            write_dict_to_json(output_file, check_results, mode="w+", encoding="utf-8")
+            print(f"分析结果(Json格式)已保存至: {output_file}")
 
 
 def args_parser(excludes_ext, allowed_keys):
@@ -289,6 +294,8 @@ def args_parser(excludes_ext, allowed_keys):
                         help='输出文件路径(默认：{project_name}.json)')
     parser.add_argument('-O', '--output-keys', dest='output_keys', nargs='+', default=[],
                         help=f'指定输出结果的键，直接以空格分隔多个键，如 -O file match, 允许的键:{allowed_keys}')
+    parser.add_argument('-F','--output-format', dest='output_format', type=str, default='json', choices=['json', 'csv'],
+                        help='指定输出文件格式: json 或 csv, 默认: json')
     args = parser.parse_args()
     return args
 

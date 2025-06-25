@@ -1,3 +1,4 @@
+import csv
 import json
 import os
 import re
@@ -289,3 +290,59 @@ def print_rules_info(rules_info: Dict):
 
             print(f"{group_name}: {name}: {regex}")
     print("\n" + "=" * 50)
+
+
+def auto_make_dir(path, is_file=False):
+    # 自动创建目录  如果输入的是文件路径,就创建上一级目录
+    directory = os.path.dirname(os.path.abspath(path)) if is_file else path
+    # print(f"auto_make_dir:{directory}")
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+        return True
+    return False
+
+
+def file_is_empty(file_path):
+    # 判断一个文件是否为空
+    return not path_is_exist(file_path) or not os.path.getsize(file_path)
+
+def path_is_exist(file_path):
+    # 判断文件是否存在
+    return os.path.exists(file_path) if file_path else False
+
+
+def write_dict_to_csv(csv_file, dicts, mode="a+", encoding="utf-8", title_keys=None):
+    # 写入字典格式的数据到csv文件中
+
+    # 判断数据是否存在
+    if not dicts:
+        return
+
+    # 自动创建目录
+    auto_make_dir(csv_file, is_file=True)
+    # 判断输入的是字典列表,还是单个字典
+    dicts = [dicts] if isinstance(dicts, dict) else dicts
+    # 判断是否需要写入表头
+    file_empty = file_is_empty(csv_file)
+    # 获取表头格式  # BUG 自定义指定表头时可能出错
+    title_keys = title_keys or dicts[0].keys()
+    # 在使用csv.writer()写入CSV文件时，通常建议将newline参数设置为''，以便按照系统的默认行为进行换行符的处理。
+    with open(csv_file, mode=mode, encoding=encoding, newline='') as file_open:
+        # DictWriter 直接写入字典格式的数据
+        # fieldnames=data[0].keys() 将字典的键作为表头
+        # quoting=csv.QUOTE_ALL  将每个元素都用双引号包裹
+        csv_writer = csv.DictWriter(file_open, fieldnames=title_keys, quoting=csv.QUOTE_ALL)
+        if file_empty or "w" in mode:
+            csv_writer.writeheader()
+        csv_writer.writerows(dicts)
+        file_open.close()
+
+
+def write_dict_to_json(file_path, data, mode="w+", encoding="utf-8"):
+    try:
+        auto_make_dir(file_path, is_file=True)
+        with open(file_path, mode, encoding=encoding) as json_file:
+            formatted_json = json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False)
+            json_file.write(formatted_json)
+    except Exception as e:
+        print(f"写入 JSON 文件失败: {e}")
