@@ -7,34 +7,13 @@ from typing import Tuple, List, Dict, Any
 
 import yaml
 
-from privacy_check import CACHE_RESULT, CACHE_UPDATE
 
+# 　Cache FIlE Key
+CACHE_RESULT = "result"
+CACHE_UPDATE = "last_update"
 
-def dumps_json(data, indent=0, ensure_ascii=False, sort_keys=False, allow_nan=False) -> Tuple:
-    """
-    - indent (int or str): 缩进级别 输出格式化的JSON字符串 会导致性能卡顿
-    - ensure_ascii (bool): 如果为False，则允许输出非ASCII字符而不进行转义。
-    - sort_keys (bool): 如果为True，则字典的键将按字母顺序排序。
-    - allow_nan (bool): 如果为True，则允许 `NaN`, `Infinity`, `-Infinity` 等特殊浮点数值。
-    """
-    try:
-        json_string = json.dumps(data, indent=indent, ensure_ascii=ensure_ascii, sort_keys=sort_keys,
-                                 allow_nan=allow_nan)
-        return json_string, None
-    except Exception as e:
-        print(f"dumps json error: {e}")
-        return None, e
-
-
-def write_string(file_path: str, content: str, mode: str = 'w+', encoding: str = 'utf-8') -> Tuple:
-    try:
-        if content:
-            with open(file_path, mode, encoding=encoding) as file:
-                file.write(content)
-        return True, None
-    except IOError as e:
-        print(f"写入文件时发生错误: {e}")
-        return False, e
+def init_cacha_dict():
+    return {CACHE_RESULT: {}, CACHE_UPDATE: None}
 
 
 def save_cache_if_needed(cache_file, cache_data, cache_time, last_cache_time, save_interval, force_store) -> Tuple:
@@ -71,6 +50,33 @@ def save_cache_if_needed(cache_file, cache_data, cache_time, last_cache_time, sa
         return False, None
 
 
+def dumps_json(data, indent=0, ensure_ascii=False, sort_keys=False, allow_nan=False) -> Tuple:
+    """
+    - indent (int or str): 缩进级别 输出格式化的JSON字符串 会导致性能卡顿
+    - ensure_ascii (bool): 如果为False，则允许输出非ASCII字符而不进行转义。
+    - sort_keys (bool): 如果为True，则字典的键将按字母顺序排序。
+    - allow_nan (bool): 如果为True，则允许 `NaN`, `Infinity`, `-Infinity` 等特殊浮点数值。
+    """
+    try:
+        json_string = json.dumps(data, indent=indent, ensure_ascii=ensure_ascii, sort_keys=sort_keys,
+                                 allow_nan=allow_nan)
+        return json_string, None
+    except Exception as e:
+        print(f"dumps json error: {e}")
+        return None, e
+
+
+def write_string(file_path: str, content: str, mode: str = 'w+', encoding: str = 'utf-8') -> Tuple:
+    try:
+        if content:
+            with open(file_path, mode, encoding=encoding) as file:
+                file.write(content)
+        return True, None
+    except IOError as e:
+        print(f"写入文件时发生错误: {e}")
+        return False, e
+
+
 def file_is_larger(file_path, limit=1):
     """判断指定路径的文件大小是否超过1MB。 """
     # 获取文件大小，单位为字节
@@ -81,29 +87,26 @@ def file_is_larger(file_path, limit=1):
     return file_size > one_mb_in_bytes
 
 
-def validate_rules(rules) -> None:
+def validate_rules(rules_info: Dict) -> bool:
     print("\n开始验证规则...")
     invalid_rules = []
     valid_rules_count = 0
 
-    if not isinstance(rules, list):
-        print("错误: 配置文件不是列表类型")
-        return
+    if not isinstance(rules_info, dict):
+        print("Error: The rules info is not of dict type!!!")
+        return False
 
-    for group in rules:
-        if not isinstance(group, dict):
-            continue
-
-        group_name = group.get('group', '')
-        rule_list = group.get('rule', [])
-
+    for group_name, rule_list in rules_info.items():
         if not isinstance(rule_list, list):
+            print("Error: The rules content is not of list type!!!")
             continue
 
         for rule in rule_list:
             if not isinstance(rule, dict):
+                print("Error: The rule is not of dict type!!!")
                 continue
 
+            # 检查loaded字段(默认为True)
             if not rule.get('loaded', True):
                 continue
 
@@ -117,10 +120,6 @@ def validate_rules(rules) -> None:
                     'name': rule.get('name', 'Unknown'),
                     'error': f'缺少必要字段: {", ".join(missing_fields)}'
                 })
-                continue
-
-            # 检查loaded字段(默认为True)
-            if not rule.get('loaded', True):
                 continue
 
             # 验证正则表达式
@@ -143,9 +142,10 @@ def validate_rules(rules) -> None:
                 print(f"正则表达式: {rule['f_regex']}")
             print(f"错误信息: {rule['error']}")
         print("\n请修复以上规则后再运行扫描。")
-        exit(1)
+        return False
     else:
         print("规则验证通过！\n")
+        return True
 
 
 def file_ext_in_black(filename: str, exclude_ext: List) -> bool:
@@ -252,10 +252,6 @@ def read_file_safe(filepath: str) -> Tuple[str, str]:
         return content, 'utf-8-ignore-forced'
 
 
-def init_cacha_dict():
-    return {CACHE_RESULT: {}, CACHE_UPDATE: None}
-
-
 def load_json(json_path: str, encoding: str = 'utf-8') -> Any:
     """加载漏洞扫描结果"""
     try:
@@ -274,17 +270,22 @@ def read_in_chunks(file_object, chunk_size=1024 * 1024):
         yield data
 
 
-def print_used_rules(rule_list):
+def print_rules_info(rules_info: Dict):
     print("\n本次扫描使用的规则:")
-    for rule in rule_list:
-        if not isinstance(rule, dict):
-            continue
-        if not rule.get('loaded', True):
-            continue
-        name = rule.get('name', 'Unknown')
-        regex = rule.get('f_regex', '')
-        if len(regex) > 50:
-            regex = regex[:47] + '...'
+    if not isinstance(rules_info, dict):
+        print("Error: The rules info is not of dict type!!!")
 
-        print(f"{name}: {regex}")
+    for group_name, rule_list in rules_info.items():
+        for rule in rule_list:
+            if not isinstance(rule, dict):
+                print("Error: The rule is not of dict type!!!")
+                continue
+            if not rule.get('loaded', True):
+                continue
+            name = rule.get('name', 'Unknown')
+            regex = rule.get('f_regex', '')
+            if len(regex) > 50:
+                regex = regex[:47] + '...'
+
+            print(f"{group_name}: {name}: {regex}")
     print("\n" + "=" * 50)

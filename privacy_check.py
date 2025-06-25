@@ -2,30 +2,32 @@ import argparse
 import json
 import os
 import re
+import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta, datetime
 from typing import List, Dict, Tuple, Any
 
-from utils import save_cache_if_needed, validate_rules, get_files_with_filter, file_encoding, print_progress, \
-    _load_rules_config, read_file_safe, init_cacha_dict, load_json, read_in_chunks, print_used_rules
-
-# 　Cache FIlE Key
-CACHE_RESULT = "result"
-CACHE_UPDATE = "last_update"
+from utils import validate_rules, get_files_with_filter, file_encoding, print_progress, \
+    _load_rules_config, read_file_safe, load_json, read_in_chunks, print_rules_info, init_cacha_dict, CACHE_RESULT, \
+    CACHE_UPDATE, save_cache_if_needed
 
 
 class PrivacyChecker:
     def __init__(self, project_name: str, rule_file: str, exclude_ext: List[str], sensitive_only: bool = False,
                  limit_size: int = 1):
-
-        self.rules_info = _load_rules_config(rule_file)
         self.exclude_ext = exclude_ext
         self.limit_size = limit_size
         self.sensitive_only = sensitive_only  # 新增属性
-        validate_rules(self.rules_info)       # 进行规则文件验证
         self.scan_results = []
+
+        # 进行实际使用的规则提取
+        load_rules = _load_rules_config(rule_file)
+        self.rules_info = self._filter_rules(load_rules, self.sensitive_only)
+        if not validate_rules(self.rules_info):
+            sys.exit(1)
+        print_rules_info(self.rules_info)
 
         # 缓存信息
         self.cache_file = f"{project_name}.cache"
@@ -49,23 +51,24 @@ class PrivacyChecker:
         return cache
 
     @classmethod
-    def _preload_rules(cls, rules, sensitive_only) -> Dict[str, List[Dict]]:
-        """
-        整理出要利用的规则列表，返回dict，键为组名，值为规则列表。
-        """
+    def _filter_rules(cls, rules_info, sensitive_only) -> Dict[str, List[Dict]]:
+        """整理出要利用的规则列表，返回dict，{group: [{rule1},{rule2}...]}"""
+
         loaded_rules = {}
+        if not isinstance(rules_info, list):
+            print("rules info is not list, incorrect rules format!!!")
+            return {}
 
-        if not isinstance(rules, list):
-            return loaded_rules
-
-        for group in rules:
+        for group in rules_info:
             if not isinstance(group, dict):
+                print("rules group is not dict, incorrect rules format!!!")
                 continue
 
-            group_name = group.get('group', '')
+            group_name = group.get('group', None)
             rule_list = group.get('rule', [])
 
             if not isinstance(rule_list, list):
+                print("rules content is not list, incorrect rules format!!!")
                 continue
 
             filtered_rules = []
@@ -140,15 +143,10 @@ class PrivacyChecker:
         print(f"开始扫描，共发现 {total_files} 个有效文件")
         print(f"使用线程数: {max_workers if max_workers else '系统CPU核心数'}")
 
-        # 进行实际使用的规则提取
-        rules_to_apply = self._preload_rules(self.rules_info, self.sensitive_only)
-        # 显示本次扫描使用的规则
-        print_used_rules(rules_to_apply)
-
         start_time = time.time()
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # 开始提交任务
-            futures = [executor.submit(self._apply_rules, file, rules_to_apply, chunk_mode) for file in files_to_scan]
+            futures = [executor.submit(self._apply_rules, file, self.rules_info, chunk_mode) for file in files_to_scan]
             # 进行结果接受
             for completed, future in enumerate(futures):
                 filepath, check_results = future.result()
@@ -272,3 +270,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
