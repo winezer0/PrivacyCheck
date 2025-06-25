@@ -15,8 +15,8 @@ from utils import validate_rules, get_files_with_filter, file_encoding, print_pr
 
 
 class PrivacyChecker:
-    def __init__(self, project_name: str, rule_file: str, exclude_ext: List[str],
-                 sensitive_only: bool = False, allow_names: List[str] = None, limit_size: int = 1):
+    def __init__(self, project_name: str, rule_file: str, exclude_ext: List[str], allow_names: List[str] = None,
+                 sensitive_only: bool = False, limit_size: int = 1):
         self.exclude_ext = exclude_ext
         self.limit_size = limit_size
         self.sensitive_only = sensitive_only  # 新增属性
@@ -258,8 +258,8 @@ def main():
     checker = PrivacyChecker(project_name=args.project,
                              rule_file=args.rule_file,
                              exclude_ext=excludes_ext,
-                             sensitive_only=args.sensitive_only,
                              allow_names=args.allow_names,
+                             sensitive_only=args.sensitive_only,
                              limit_size=args.limit_size)
 
     check_results = checker.scan(args.target,
