@@ -214,6 +214,45 @@ class PrivacyChecker:
         return filepath, file_results
 
 
+def args_parser(excludes_ext, allowed_keys):
+    parser = argparse.ArgumentParser(description='Privacy information detection tool')
+    parser.add_argument('-r', '--rules', dest='rule_file', default='privacy_check.yaml',
+                        help='规则文件的路径(默认值：privacy_check.yaml)')
+    parser.add_argument('-t', '--target', dest='target', required=True,
+                        help='待扫描的项目目标文件或目录')
+    parser.add_argument('-p', '--project', dest='project', default='default_project',
+                        help='项目名称, 影响默认输出文件名和缓存文件名')
+    # 性能配置
+    parser.add_argument('-w', '--workers', dest='workers', type=int, default=os.cpu_count(),
+                        help='工作线程数量(默认值：CPU 核心数)')
+    parser.add_argument('-l', '--limit-size', dest='limit_size', type=int, default=5,
+                        help='检查文件大小限制 不超过 limit_size M')
+    parser.add_argument('-s', '--save-cache', dest='save_cache', action='store_true', default=False,
+                        help='定时缓存扫描结果, 建议大项目使用 (默认: False) 注意:会生成缓存文件!!!')
+    parser.add_argument('-k', '--chunk-mode', dest='chunk_mode', action='store_true', default=False,
+                        help='使用chunk模式读取文件,运行时间延长,内存占用减小 (默认: False) ')
+    # 过滤配置
+    parser.add_argument('-e', '--exclude-ext', dest='exclude_ext', nargs='+', default=[],
+                        help=f'排除文件扩展名(始终添加内置扩展名: {excludes_ext})')
+    # 筛选规则
+    parser.add_argument('-S', '--sensitive', dest='sensitive_only', action='store_true',
+                        help='只启用敏感信息规则 (sensitive: true) 默认False')
+    parser.add_argument('-a', '--allow-names', dest='allow_names', type=str, default=[],
+                        help='仅启用指定名称关键字的规则, 多个规则名用空格分隔')
+    # 输出配置
+    parser.add_argument('-o', '--output-file', dest='output_file', default=None,
+                        help='输出文件路径(默认：{project_name}.json)')
+    parser.add_argument('-O', '--output-keys', dest='output_keys', nargs='+', default=[],
+                        help=f'仅输出结果中指定键的值，多个键使用空格分隔, 允许的键: {allowed_keys}')
+    parser.add_argument('-f','--output-format', dest='output_format', type=str, default='json', choices=['json', 'csv'],
+                        help='指定输出文件格式: json 或 csv, 默认: json')
+    parser.add_argument('-F', '--format-results', dest='format_results', action='store_false', default=True,
+                        help='对输出结果的每个值进行格式化，去除引号、空格等符号, 默认: True')
+    parser.add_argument('-b','--block-matches', dest='block_matches', type=str, default=None, nargs='+',
+                        help='对匹配结果中的match键值进行黑名单关键字列表匹配剔除, 建议在匹配较大项目时搭配缓存功能使用.')
+    args = parser.parse_args()
+    return args
+
 def main():
     excludes_ext = {
         '.tmp', '.exe', '.bin', '.dll', '.elf',
@@ -253,10 +292,16 @@ def main():
         if args.format_results:
             check_results = [{k: strip_string(v) for k, v in row.items()} for row in check_results]
 
+        # 排除带有黑名单关键字的结果
+        if args.block_matches:
+            check_results = [dic for dic in check_results if not any(b in dic.get('match') for b in args.block_matches) ]
+
+        # 仅输出指定键值对
         if output_keys:
             filtered_results = [{k: item.get(k) for k in output_keys if k in item} for item in check_results]
             check_results = filtered_results or check_results
 
+        # 输出csv或者json格式
         if 'csv' in args.output_format:
             output_file = args.output_file or f"{args.project}.csv"
             write_dict_to_csv(output_file, check_results, mode="w+", encoding="utf-8")
@@ -265,45 +310,6 @@ def main():
             output_file = args.output_file or f"{args.project}.json"
             write_dict_to_json(output_file, check_results, mode="w+", encoding="utf-8")
             print(f"分析结果(Json格式)已保存至: {output_file}")
-
-
-def args_parser(excludes_ext, allowed_keys):
-    parser = argparse.ArgumentParser(description='Privacy information detection tool')
-    parser.add_argument('-r', '--rules', dest='rule_file', default='privacy_check.yaml',
-                        help='规则文件的路径(默认值：privacy_check.yaml)')
-    parser.add_argument('-t', '--target', dest='target', required=True,
-                        help='待扫描的项目目标文件或目录')
-    parser.add_argument('-p', '--project', dest='project', default='default_project',
-                        help='项目名称, 影响默认输出文件名和缓存文件名')
-    # 性能配置
-    parser.add_argument('-w', '--workers', dest='workers', type=int, default=os.cpu_count(),
-                        help='工作线程数量(默认值：CPU 核心数)')
-    parser.add_argument('-l', '--limit-size', dest='limit_size', type=int, default=5,
-                        help='检查文件大小限制 不超过 limit_size M')
-    parser.add_argument('-s', '--save-cache', dest='save_cache', action='store_true', default=False,
-                        help='定时缓存扫描结果, 建议大项目使用 (默认: False) 注意:会生成缓存文件!!!')
-    parser.add_argument('-k', '--chunk-mode', dest='chunk_mode', action='store_true', default=False,
-                        help='使用chunk模式读取文件,运行时间延长,内存占用减小 (默认: False) ')
-    # 过滤配置
-    parser.add_argument('-e', '--exclude-ext', dest='exclude_ext', nargs='+', default=[],
-                        help=f'排除文件扩展名(始终添加内置扩展名: {excludes_ext})')
-    # 筛选规则
-    parser.add_argument('-S', '--sensitive', dest='sensitive_only', action='store_true',
-                        help='只启用敏感信息规则 (sensitive: true) 默认False')
-    parser.add_argument('-a', '--allow-names', dest='allow_names', type=str, default=[],
-                        help='仅启用指定名称关键字的规则, 多个规则名用空格分隔')
-    # 输出配置
-    parser.add_argument('-o', '--output-file', dest='output_file', default=None,
-                        help='输出文件路径(默认：{project_name}.json)')
-    parser.add_argument('-O', '--output-keys', dest='output_keys', nargs='+', default=[],
-                        help=f'仅输出结果中指定键的值，多个键使用空格分隔, 允许的键: {allowed_keys}')
-    parser.add_argument('-f','--output-format', dest='output_format', type=str, default='json', choices=['json', 'csv'],
-                        help='指定输出文件格式: json 或 csv, 默认: json')
-    parser.add_argument('-F', '--format-results', dest='format_results', action='store_false', default=True,
-                        help='对输出结果的每个值进行格式化，去除引号、空格等符号, 默认: True')
-    args = parser.parse_args()
-    return args
-
 
 if __name__ == '__main__':
     main()
