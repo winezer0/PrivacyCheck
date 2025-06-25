@@ -7,6 +7,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta, datetime
 from typing import List, Dict, Tuple, Any
+
 import yaml
 
 # 　Cache FIlE Key
@@ -216,31 +217,50 @@ def _load_rules_config(config_path: str) -> Dict:
             return config_info.get('rules')
         return config_info
 
+
+
+
 def read_file_safe(filepath: str) -> Tuple[str, str]:
-    # 原有的文件读取逻辑保持不变
+    """
+    安全地读取文件内容并自动识别编码格式。
+
+    :param filepath: 文件路径
+    :return: (解码后的文本, 实际使用的编码)
+    """
+    encodings = [
+        'utf-8-sig',  # UTF-8 with BOM
+        'utf-8',
+        'gbk',
+        'gb2312',
+        'gb18030',
+        'big5',
+        'latin1',
+        'ascii',
+        'iso-8859-1',
+        'utf-16',
+        'utf-32'
+    ]
+
     try:
         with open(filepath, 'rb') as f:
             raw_data = f.read()
-            encodings = [
-                'utf-8',
-                'gbk',
-                'gb2312',
-                'gb18030',
-                'big5',
-                'iso-8859-1',
-                'ascii',
-                'latin1',
-                'utf-16',
-                'utf-32'
-            ]
-            for encoding in encodings:
-                try:
-                    return raw_data.decode(encoding), encoding
-                except (UnicodeDecodeError, LookupError):
-                    continue
-    except Exception:
-        return raw_data.decode('utf-8', errors='ignore'), 'utf-8-forced'
 
+        # 尝试常用编码解码
+        for encoding in encodings:
+            try:
+                content = raw_data.decode(encoding)
+                return content, encoding
+            except (UnicodeDecodeError, LookupError):
+                continue
+
+        # 如果所有编码都失败，强制使用 UTF-8 忽略错误
+        content = raw_data.decode('utf-8', errors='replace')
+        return content, 'utf-8-forced'
+
+    except Exception as e:
+        print(f"[!] 读取文件时发生错误: {e}")
+        content = raw_data.decode('utf-8', errors='ignore')
+        return content, 'utf-8-ignore-forced'
 
 def init_cacha_dict():
     return {CACHE_RESULT: {}, CACHE_UPDATE: None}
@@ -358,8 +378,17 @@ class PrivacyChecker:
 
     @classmethod
     def _apply_rule(cls, rule: Dict, content: str, group_name: str, filepath: str) -> List[Dict]:
-        flags = re.MULTILINE | (re.IGNORECASE if rule.get('ignore_case', True) else 0)
-        pattern = re.compile(rule['f_regex'], flags)
+        rule_is_sensitive = rule.get('sensitive', False)
+        rule_name = rule.get('name')
+        rule_regex = rule.get('f_regex')
+        rule_ignore_case = rule.get('ignore_case', True)
+        # 根据是否为敏感信息设置默认上下文长度 非敏感信息获取的情况下不需要扩充上下文 敏感信息的情况下扩充上下文长度
+        context_default = 50 if rule_is_sensitive else 0
+        rule_context_left = rule.get('context_left', context_default)
+        rule_context_right = rule.get('context_right', context_default)
+
+        flags = re.MULTILINE | (re.IGNORECASE if rule_ignore_case else 0)
+        pattern = re.compile(rule_regex, flags)
         matches = pattern.finditer(content)
 
         rule_results = []
@@ -367,20 +396,19 @@ class PrivacyChecker:
             matched_text = match.group()
             if len(matched_text.strip()) <= 5:
                 continue
-
-            start_pos = max(0, match.start() - 50)
-            end_pos = min(len(content), match.end() + 50)
+            start_pos = max(0, match.start() - rule_context_left)
+            end_pos = min(len(content), match.end() + rule_context_right)
             context = content[start_pos:end_pos]
 
             result = {
                 'file': filepath,  # 应在调用时赋值
                 'group': group_name,
-                'rule_name': rule['name'],
+                'rule_name': rule_name,
                 'match': matched_text,
                 'context': context,
                 'position': match.start(),
                 'line_number': content.count('\n', 0, match.start()) + 1,
-                'sensitive': rule.get('sensitive', False)
+                'sensitive': rule_is_sensitive
             }
             rule_results.append(result)
         return rule_results
