@@ -62,6 +62,10 @@
 
 ## 使用示例
 
-![示例图片](doc/demo.png)
+![runtime](doc/runtime.png)
+
+![output-csv](doc/output-csv.png)
+
+![output-json](doc/output-json.png)
 
 
