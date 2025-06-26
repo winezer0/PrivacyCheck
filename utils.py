@@ -202,7 +202,7 @@ def print_progress(completed_task, total_task, start_time):
           f"已用时长: {str(elapsed_delta)} 预计剩余: {str(remaining_delta)}", end='')
 
 
-def _load_rules_config(config_path: str) -> Dict:
+def load_rules_config(config_path: str) -> Dict:
     with open(config_path, 'r', encoding='utf-8') as f:
         config_info = yaml.safe_load(f)
         # 当前输入的是原始HAE规则,需要提取rules节点信息
@@ -372,3 +372,65 @@ def group_dicts_by_key(dicts, key):
         group_name = item.get(key)
         group_dict[group_name].append(item)
     return dict(group_dict)
+
+
+def filter_rules(group_infos, filter_groups: List[str], filter_names: List[str], sensitive_only=False) -> Dict[str, List[Dict]]:
+    """整理出要利用的规则列表，返回dict，{group: [{rule1},{rule2}...]}"""
+    if filter_groups:
+        filter_groups = filter_groups if isinstance(filter_groups, list) else [filter_groups]
+        filter_groups = [x.strip().lower() for x in filter_groups if x.strip()]
+
+    if filter_names:
+        filter_names = filter_names if isinstance(filter_names, list) else [filter_names]
+        filter_names = [x.strip().lower() for x in filter_names if x.strip()]
+
+    loaded_rules = {}
+    if not isinstance(group_infos, list):
+        print("rules info is not list, incorrect rules format!!!")
+        return {}
+
+    for group_info in group_infos:
+        if not isinstance(group_info, dict):
+            print("rules group is not dict, incorrect rules format!!!")
+            continue
+
+        group_name = group_info.get('group', None)
+        group_rules = group_info.get('rule', [])
+
+        if not isinstance(group_rules, list):
+            print("rules content is not list, incorrect rules format!!!")
+            continue
+
+        # 按照group_name进行过滤
+        if filter_groups and not any(x in str(group_name).lower() for x in filter_groups):
+            continue
+
+        filtered_rules = []
+        for rule in group_rules:
+            # 排除空规则
+            if not rule or not isinstance(rule, dict):
+                continue
+            # 仅敏感模式下排除非敏感信息的规则
+            if sensitive_only and rule.get('sensitive', False) is False:
+                continue
+            # 排除没有加载的规则
+            if not rule.get('loaded', True) or 'f_regex' not in rule.keys():
+                continue
+            # 按名称关键字过滤
+            if filter_names and not any(x in str(rule.get('name')).lower() for x in filter_names):
+                continue
+            filtered_rules.append(rule)
+
+        if filtered_rules:
+            loaded_rules[group_name] = filtered_rules
+
+    return loaded_rules
+
+
+def rules_size(rules_info):
+    size = 0
+    if isinstance(rules_info, dict):
+        size += sum([len(x) for x in rules_info.values()])
+    if isinstance(rules_info, list):
+        size += sum([len(x.get('rule')) for x in rules_info])
+    return size

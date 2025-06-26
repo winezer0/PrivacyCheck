@@ -9,26 +9,18 @@ from datetime import timedelta, datetime
 from typing import List, Dict, Tuple, Any
 
 from utils import validate_rules, get_files_with_filter, file_encoding, print_progress, \
-    _load_rules_config, read_file_safe, load_json, read_in_chunks, print_rules_info, init_cacha_dict, CACHE_RESULT, \
+    load_rules_config, read_file_safe, load_json, read_in_chunks, print_rules_info, init_cacha_dict, CACHE_RESULT, \
     CACHE_UPDATE, save_cache_if_needed, write_dict_to_csv, write_dict_to_json, strip_string, new_dicts, \
-    group_dicts_by_key
+    group_dicts_by_key, filter_rules, rules_size
 
 
 class PrivacyChecker:
-    def __init__(self, project_name: str, rule_file: str, exclude_ext: List[str], allow_names: List[str] = None,
-                 sensitive_only: bool = False, limit_size: int = 1):
+    def __init__(self, project_name: str, rules_info: Dict, exclude_ext: List[str], sensitive_only: bool = False,
+                 limit_size: int = 1):
         self.exclude_ext = exclude_ext
         self.limit_size = limit_size
-        self.sensitive_only = sensitive_only  # 新增属性
         self.scan_results = []
-        self.allow_names = allow_names
-
-        # 进行实际使用的规则提取
-        load_rules = _load_rules_config(rule_file)
-        self.rules_info = self._filter_rules(load_rules, self.allow_names, self.sensitive_only)
-        if not validate_rules(self.rules_info):
-            sys.exit(1)
-        print_rules_info(self.rules_info)
+        self.rules_info = rules_info
 
         # 缓存信息
         self.cache_file = f"{project_name}.cache"
@@ -50,49 +42,6 @@ class PrivacyChecker:
         except Exception as e:
             print(f"加载缓存失败: {e}")
         return cache
-
-    @classmethod
-    def _filter_rules(cls, rules_info, allow_names: List[str], sensitive_only=False) -> Dict[str, List[Dict]]:
-        """整理出要利用的规则列表，返回dict，{group: [{rule1},{rule2}...]}"""
-        allow_names = [x.strip() for x in allow_names if x.strip()] if allow_names else []
-
-        loaded_rules = {}
-        if not isinstance(rules_info, list):
-            print("rules info is not list, incorrect rules format!!!")
-            return {}
-
-        for group in rules_info:
-            if not isinstance(group, dict):
-                print("rules group is not dict, incorrect rules format!!!")
-                continue
-
-            group_name = group.get('group', None)
-            rule_list = group.get('rule', [])
-
-            if not isinstance(rule_list, list):
-                print("rules content is not list, incorrect rules format!!!")
-                continue
-
-            filtered_rules = []
-            for rule in rule_list:
-                # 排除空规则
-                if not rule or not isinstance(rule, dict):
-                    continue
-                # 仅敏感模式下排除非敏感信息的规则
-                if sensitive_only and rule.get('sensitive', False) is False:
-                    continue
-                # 排除没有加载的规则
-                if not rule.get('loaded', True) or 'f_regex' not in rule.keys():
-                    continue
-                # 按名称关键字过滤
-                if allow_names and not any(x in str(rule.get('name')).lower() for x in allow_names):
-                    continue
-                filtered_rules.append(rule)
-
-            if filtered_rules:
-                loaded_rules[group_name] = filtered_rules
-
-        return loaded_rules
 
     @classmethod
     def _apply_rule(cls, rule: Dict, content: str, group_name: str, filepath: str) -> List[Dict]:
@@ -216,7 +165,7 @@ class PrivacyChecker:
 
 def args_parser(excludes_ext, allowed_keys):
     parser = argparse.ArgumentParser(description='Privacy information detection tool')
-    parser.add_argument('-r', '--rules', dest='rule_file', default='privacy_check.yaml',
+    parser.add_argument('-r', '--rules', dest='rules_file', default='privacy_check.yaml',
                         help='规则文件的路径(默认值：privacy_check.yaml)')
     parser.add_argument('-t', '--target', dest='target', required=True,
                         help='待扫描的项目目标文件或目录')
@@ -235,10 +184,12 @@ def args_parser(excludes_ext, allowed_keys):
     parser.add_argument('-e', '--exclude-ext', dest='exclude_ext', nargs='+', default=[],
                         help=f'排除文件扩展名(始终添加内置扩展名: {excludes_ext})')
     # 筛选规则
-    parser.add_argument('-S', '--sensitive', dest='sensitive_only', action='store_true',
+    parser.add_argument('-S', '--sensitive-only', dest='sensitive_only', action='store_true',
                         help='只启用敏感信息规则 (sensitive: true) 默认False')
-    parser.add_argument('-a', '--allow-names', dest='allow_names', type=str, default=[],
-                        help='仅启用指定名称关键字的规则, 多个规则名用空格分隔')
+    parser.add_argument('-N', '--filter-names', dest='filter_names', nargs='+', type=str, default=[],
+                        help='仅启用name中包含指定关键字的规则, 多个关键字用空格分隔')
+    parser.add_argument('-G', '--filter-groups', dest='filter_groups', nargs='+', type=str, default=[],
+                        help='仅启用group中包含指定关键字的规则, 多个关键字用空格分隔')
     # 输出配置
     parser.add_argument('-o', '--output-file', dest='output_file', default=None,
                         help='指定输出文件路径 (默认：{project_name}.json)')
@@ -285,11 +236,18 @@ def main():
             print(f"[错误] --output-keys 存在非法字段: {invalid_keys} 仅允许以下字段: {sorted(allowed_keys)}")
             sys.exit(1)
 
+    # 进行实际使用的规则提取
+    load_rules = load_rules_config(args.rules_file)
+    print(f"loaded rules group:{len(load_rules)} -> Rule Size:{rules_size(load_rules)} -> Type:{type(load_rules)}")
+    rules_info = filter_rules(load_rules, args.filter_groups, args.filter_names, args.sensitive_only)
+    print(f"filter rules group:{len(rules_info)} -> Rule Size:{rules_size(rules_info)} -> Type:{type(rules_info)}")
+    if not validate_rules(rules_info):
+        sys.exit(1)
+    print_rules_info(rules_info)
+
     checker = PrivacyChecker(project_name=project_name,
-                             rule_file=args.rule_file,
+                             rules_info=rules_info,
                              exclude_ext=excludes_ext,
-                             allow_names=args.allow_names,
-                             sensitive_only=args.sensitive_only,
                              limit_size=args.limit_size)
 
     check_results = checker.scan(args.target,
@@ -323,9 +281,9 @@ def main():
             output_name = f"{base_output}.{group_name}" if group_name else base_output
             output_file = f"{output_name}.{output_format}"
             if 'csv' in output_format:
-                write_dict_to_csv(output_file, group_results, mode="w+", encoding="utf-8")
+                write_dict_to_csv(output_file, group_results, mode="a+", encoding="utf-8")
             else:
-                write_dict_to_json(output_file, group_results, mode="w+", encoding="utf-8")
+                write_dict_to_json(output_file, group_results, mode="a+", encoding="utf-8")
             print(f"分析结果 [group:{group_name}|format:{output_format})] 已保存至: {output_file}")
 
 
