@@ -1,5 +1,4 @@
 import argparse
-import json
 import os
 import re
 import sys
@@ -11,7 +10,8 @@ from typing import List, Dict, Tuple, Any
 
 from utils import validate_rules, get_files_with_filter, file_encoding, print_progress, \
     _load_rules_config, read_file_safe, load_json, read_in_chunks, print_rules_info, init_cacha_dict, CACHE_RESULT, \
-    CACHE_UPDATE, save_cache_if_needed, write_dict_to_csv, write_dict_to_json, strip_string
+    CACHE_UPDATE, save_cache_if_needed, write_dict_to_csv, write_dict_to_json, strip_string, new_dicts, \
+    group_dicts_by_key
 
 
 class PrivacyChecker:
@@ -220,7 +220,7 @@ def args_parser(excludes_ext, allowed_keys):
                         help='规则文件的路径(默认值：privacy_check.yaml)')
     parser.add_argument('-t', '--target', dest='target', required=True,
                         help='待扫描的项目目标文件或目录')
-    parser.add_argument('-p', '--project', dest='project', default='default_project',
+    parser.add_argument('-p', '--project-name', dest='project_name', default='default_project',
                         help='项目名称, 影响默认输出文件名和缓存文件名')
     # 性能配置
     parser.add_argument('-w', '--workers', dest='workers', type=int, default=os.cpu_count(),
@@ -241,15 +241,23 @@ def args_parser(excludes_ext, allowed_keys):
                         help='仅启用指定名称关键字的规则, 多个规则名用空格分隔')
     # 输出配置
     parser.add_argument('-o', '--output-file', dest='output_file', default=None,
-                        help='输出文件路径(默认：{project_name}.json)')
+                        help='指定输出文件路径 (默认：{project_name}.json)')
+
+    parser.add_argument('-g', '--output-group', dest='output_group', action='store_true', default=False,
+                        help='为规则组单独输出结果 (默认：False')
+
     parser.add_argument('-O', '--output-keys', dest='output_keys', nargs='+', default=[],
                         help=f'仅输出结果中指定键的值，多个键使用空格分隔, 允许的键: {allowed_keys}')
+
     parser.add_argument('-f','--output-format', dest='output_format', type=str, default='json', choices=['json', 'csv'],
                         help='指定输出文件格式: json 或 csv, 默认: json')
+
     parser.add_argument('-F', '--format-results', dest='format_results', action='store_false', default=True,
                         help='对输出结果的每个值进行格式化，去除引号、空格等符号, 默认: True')
+
     parser.add_argument('-b','--block-matches', dest='block_matches', type=str, default=None, nargs='+',
                         help='对匹配结果中的match键值进行黑名单关键字列表匹配剔除, 建议在匹配较大项目时搭配缓存功能使用.')
+
     args = parser.parse_args()
     return args
 
@@ -263,6 +271,9 @@ def main():
     allowed_keys = {"file", "group", "rule_name", "match", "context", "position", "line_number", "sensitive"}
 
     args = args_parser(excludes_ext, allowed_keys)
+    output_format = args.output_format
+    output_file = args.output_file
+    project_name = args.project_name
     # 更新用户指定的后缀类型
     excludes_ext.update(args.exclude_ext)
 
@@ -274,7 +285,7 @@ def main():
             print(f"[错误] --output-keys 存在非法字段: {invalid_keys} 仅允许以下字段: {sorted(allowed_keys)}")
             sys.exit(1)
 
-    checker = PrivacyChecker(project_name=args.project,
+    checker = PrivacyChecker(project_name=project_name,
                              rule_file=args.rule_file,
                              exclude_ext=excludes_ext,
                              allow_names=args.allow_names,
@@ -296,20 +307,27 @@ def main():
         if args.block_matches:
             check_results = [dic for dic in check_results if not any(b in dic.get('match') for b in args.block_matches) ]
 
-        # 仅输出指定键值对
+        # 按照group分别输出结果类型
+        if args.output_group:
+            group_results = group_dicts_by_key(check_results, key='group')
+        else:
+            group_results = group_dicts_by_key(check_results, key='')
+
+        # 仅输出结果中的指定键
         if output_keys:
-            filtered_results = [{k: item.get(k) for k in output_keys if k in item} for item in check_results]
-            check_results = filtered_results or check_results
+            group_results = {group_name: new_dicts(group, output_keys) for group_name, group in group_results.items()}
 
         # 输出csv或者json格式
-        if 'csv' in args.output_format:
-            output_file = args.output_file or f"{args.project}.csv"
-            write_dict_to_csv(output_file, check_results, mode="w+", encoding="utf-8")
-            print(f"分析结果(CSV格式)已保存至: {output_file}")
-        else:
-            output_file = args.output_file or f"{args.project}.json"
-            write_dict_to_json(output_file, check_results, mode="w+", encoding="utf-8")
-            print(f"分析结果(Json格式)已保存至: {output_file}")
+        for group_name, group_results in group_results.items():
+            base_output = output_file or project_name
+            output_name = f"{base_output}.{group_name}" if group_name else base_output
+            output_file = f"{output_name}.{output_format}"
+            if 'csv' in output_format:
+                write_dict_to_csv(output_file, group_results, mode="w+", encoding="utf-8")
+            else:
+                write_dict_to_json(output_file, group_results, mode="w+", encoding="utf-8")
+            print(f"分析结果 [group:{group_name}|format:{output_format})] 已保存至: {output_file}")
+
 
 if __name__ == '__main__':
     main()

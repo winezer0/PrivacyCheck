@@ -8,6 +8,8 @@ rules:
       ignore_case: true
       context_left: 50
       context_right: 50
+  - group: System Information
+    rule:
     - name: Windows File/Dir Path
       loaded: true
       f_regex: '[^\w](([a-zA-Z]:\\(?:\w+\\?)*)|([a-zA-Z]:\\(?:\w+\\)*\w+\.\w+))'

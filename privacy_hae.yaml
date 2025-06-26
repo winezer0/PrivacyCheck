@@ -1,5 +1,5 @@
 rules:
-  - group: Basic Information
+  - group: People Information
     rule:
       - name: Email
         loaded: true
@@ -28,6 +28,19 @@ rules:
         scope: response body
         engine: nfa
         sensitive: false
+      - name: Mobile Number Field
+        loaded: true
+        f_regex: '(((|\\)(|''|")(|[\w]{1,10})(mobile|phone|sjh|shoujihao|concat)(|[\.\w]{1,10})(|\\)(|''|")(
+      |)(:|=|!=|[\)]{0,1}\.val\()( |)(|\\)(''|")([^''"]+?)(|\\)(''|")(|,|\)))|((|\\)(''|")([^''"]+?)(|\\)(''|")(|\\)(|''|")(
+      |)(:|[=]{1,3}|![=]{1,2})( |)(|[\.\w]{1,10})(mobile|phone|sjh|shoujihao|concat)(|[\.\w]{1,10})(|\\)(|''|"))) '
+        s_regex: ''
+        format: '{0}'
+        color: green
+        scope: response body
+        engine: nfa
+        sensitive: false
+  - group: System Information
+    rule:
       - name: Internal IP Address
         loaded: true
         f_regex: '[^0-9]((127\.0\.0\.1)|(10\.\d{1,3}\.\d{1,3}\.\d{1,3})|(172\.((1[6-9])|(2\d)|(3[01]))\.\d{1,3}\.\d{1,3})|(192\.168\.\d{1,3}\.\d{1,3}))'
@@ -46,6 +59,33 @@ rules:
         scope: response
         engine: nfa
         sensitive: true
+      - name: Windows File/Dir Path
+        loaded: true
+        f_regex: '[^\w]([a-zA-Z]:\\\\?(?:[^<>:/\\|?*]+\\\\?)*)([^<>:/\\|?*]+(?:\.[^<>:/\\|?*]+)?)'
+        s_regex: ''
+        format: '{0}'
+        color: green
+        scope: response
+        engine: nfa
+        sensitive: true
+      - name: JDBC Connection
+        loaded: true
+        f_regex: (jdbc:[a-z:]+://[a-z0-9\.\-_:;=/@?,&]+)
+        s_regex: ''
+        format: '{0}'
+        color: yellow
+        scope: any
+        engine: nfa
+        sensitive: false
+      - name: Authorization Header
+        loaded: false
+        f_regex: ((basic [a-z0-9=:_\+\/-]{5,100})|(bearer [a-z0-9_.=:_\+\/-]{5,100}))
+        s_regex: ''
+        format: '{0}'
+        color: yellow
+        scope: response body
+        engine: nfa
+        sensitive: false
   - group: Sensitive Information
     rule:
       - name: Cloud Key
@@ -57,15 +97,6 @@ rules:
         scope: any
         engine: nfa
         sensitive: false
-      - name: Windows File/Dir Path
-        loaded: true
-        f_regex: '[^\w]([a-zA-Z]:\\\\?(?:[^<>:/\\|?*]+\\\\?)*)([^<>:/\\|?*]+(?:\.[^<>:/\\|?*]+)?)'
-        s_regex: ''
-        format: '{0}'
-        color: green
-        scope: response
-        engine: nfa
-        sensitive: true
       - name: Password Field
         loaded: true
         f_regex: (((|\\)(|'|")(|[\.\w]{1,10})([p](ass|wd|asswd|assword))(|[\.\w]{1,10})(|\\)(|'|")(
@@ -97,24 +128,6 @@ rules:
         scope: response body
         engine: dfa
         sensitive: false
-      - name: JDBC Connection
-        loaded: true
-        f_regex: (jdbc:[a-z:]+://[a-z0-9\.\-_:;=/@?,&]+)
-        s_regex: ''
-        format: '{0}'
-        color: yellow
-        scope: any
-        engine: nfa
-        sensitive: false
-      - name: Authorization Header
-        loaded: false
-        f_regex: ((basic [a-z0-9=:_\+\/-]{5,100})|(bearer [a-z0-9_.=:_\+\/-]{5,100}))
-        s_regex: ''
-        format: '{0}'
-        color: yellow
-        scope: response body
-        engine: nfa
-        sensitive: false
       - name: Sensitive Field
         loaded: false
         f_regex: (((\[)?('|")?([\.\w]{0,10})(key|secret|token|config|auth|access|admin|ticket)([\.\w]{0,10})('|")?(\])?(
@@ -126,18 +139,7 @@ rules:
         scope: response
         engine: nfa
         sensitive: false
-      - name: Mobile Number Field
-        loaded: true
-        f_regex: '(((|\\)(|''|")(|[\w]{1,10})(mobile|phone|sjh|shoujihao|concat)(|[\.\w]{1,10})(|\\)(|''|")(
-      |)(:|=|!=|[\)]{0,1}\.val\()( |)(|\\)(''|")([^''"]+?)(|\\)(''|")(|,|\)))|((|\\)(''|")([^''"]+?)(|\\)(''|")(|\\)(|''|")(
-      |)(:|[=]{1,3}|![=]{1,2})( |)(|[\.\w]{1,10})(mobile|phone|sjh|shoujihao|concat)(|[\.\w]{1,10})(|\\)(|''|"))) '
-        s_regex: ''
-        format: '{0}'
-        color: green
-        scope: response body
-        engine: nfa
-        sensitive: false
-  - group: Other
+  - group: URL Information
     rule:
       - name: Linkfinder
         loaded: true

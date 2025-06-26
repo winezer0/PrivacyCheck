@@ -3,6 +3,7 @@ import json
 import os
 import re
 import time
+from collections import defaultdict
 from datetime import timedelta
 from typing import Tuple, List, Dict, Any
 
@@ -313,7 +314,6 @@ def path_is_exist(file_path):
 
 def write_dict_to_csv(csv_file, dicts, mode="a+", encoding="utf-8", title_keys=None):
     # 写入字典格式的数据到csv文件中
-
     # 判断数据是否存在
     if not dicts:
         return
@@ -354,3 +354,21 @@ def strip_string(val):
         val = val.replace(r"\/", "/")
         return val
     return val
+
+
+def new_dicts(dicts, need_keys):
+    # 提取dicts中的指定键的值
+    dicts = [{k: item.get(k) for k in need_keys if k in item} for item in dicts]
+    return dicts
+
+
+def group_dicts_by_key(dicts, key):
+    if not key:
+        # 没有指定键时 将dicts放在空键中
+        return {key: dicts}
+
+    group_dict = defaultdict(list)
+    for item in dicts:
+        group_name = item.get(key)
+        group_dict[group_name].append(item)
+    return dict(group_dict)
