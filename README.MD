@@ -24,24 +24,46 @@
 - **文件过滤**：可以通过 `-e 或 --exclude-ext` 排除特定后缀的文件，避免扫描非文本类文件。
 - **敏感细心扫描**：若只关心高风险隐私信息，可启用 `-S 或 --sensitive` 参数。
 
-## 使用方式
-    python privacy_check.py -h
-
 
 ### 参数说明
-| 参数 | 简写 | 描述 | 默认值 |
-|------|------|------|--------|
-| `--rule-file` | `-r` | 规则配置文件路径 | `privacy_check.yaml` |
-| `--target` | `-t` | 要扫描的目标文件或目录(必填) | 无 |
-| `--project` | `-p` | 项目名称，影响默认输出文件名和缓存文件名 | 无 |
-| `--output` | `-o` | 输出文件路径 | `output.json` |
-| `--workers` | `-w` | 工作线程数 | CPU 核心数量 |
-| `--limit-size` | `-l` | 设置检查文件大小上限(单位：MB) | 无 |
-| `--save-cache` | `-s` | 定时缓存扫描结果，建议在大项目中使用(注意：会生成缓存文件) | False |
-| `--chunk-mode` | `-k` | 使用 chunk 模式读取文件，运行时间延长但内存占用减小 | False |
-| `--exclude-ext` | `-e` | 排除指定后缀的文件(默认已排除以下格式：{'.exe', '.bin', '.gif', '.woff', '.elf', '.bz2', '.gz', '.woff2', '.tar', '.zip', '.jpeg', '.jpg', '.tiff', '.dll', '.7z', '.png', '.tif', '.rar', '.tmp', '.bmp'}) | 无 |
-| `--sensitive-only` | `-S` | 仅扫描敏感规则 | False |
+```
+python privacy_check.py -h
 
+Privacy information detection tool
+
+options:
+  -h, --help            show this help message and exit
+  -r, --rules RULES_FILE
+                        规则文件的路径(默认值：privacy_check.yaml)
+  -t, --target TARGET   待扫描的项目目标文件或目录
+  -p, --project-name PROJECT_NAME
+                        项目名称, 影响默认输出文件名和缓存文件名
+  -w, --workers WORKERS
+                        工作线程数量(默认值：CPU 核心数)
+  -l, --limit-size LIMIT_SIZE
+                        检查文件大小限制 不超过 limit_size M
+  -s, --save-cache      定时缓存扫描结果, 建议大项目使用 (默认: False) 注意:会生成缓存文件!!!
+  -k, --chunk-mode      使用chunk模式读取文件,运行时间延长,内存占用减小 (默认: False)
+  -e, --exclude-ext EXCLUDE_EXT [EXCLUDE_EXT ...]
+                        排除文件扩展名(始终添加内置扩展名: {'.gz', '.woff', '.dll', '.bz2', '.bmp', '.7z', '.elf', '.pn
+                        '.tiff', '.jpeg', '.woff2', '.tif', '.exe', '.zip', '.jpg', '.tar', '.rar', '.gif', '.tmp'})
+  -S, --sensitive-only  只启用敏感信息规则 (sensitive: true) 默认False
+  -N, --filter-names FILTER_NAMES [FILTER_NAMES ...]
+                        仅启用name中包含指定关键字的规则, 多个关键字用空格分隔
+  -G, --filter-groups FILTER_GROUPS [FILTER_GROUPS ...]
+                        仅启用group中包含指定关键字的规则, 多个关键字用空格分隔
+  -o, --output-file OUTPUT_FILE
+                        指定输出文件路径 (默认：{project_name}.json)
+  -g, --output-group    为规则组单独输出结果 (默认：False
+  -O, --output-keys OUTPUT_KEYS [OUTPUT_KEYS ...]
+                        仅输出结果中指定键的值，多个键使用空格分隔, 允许的键: {'rule_name', 'sensitive', 'group', 'matc
+                        'context', 'file', 'line_number'}
+  -f, --output-format {json,csv}
+                        指定输出文件格式: json 或 csv, 默认: json
+  -F, --format-results  对输出结果的每个值进行格式化，去除引号、空格等符号, 默认: True
+  -b, --block-matches BLOCK_MATCHES [BLOCK_MATCHES ...]
+                        对匹配结果中的match键值进行黑名单关键字列表匹配剔除, 建议在匹配较大项目时搭配缓存功能使用.
+```
 
 ## 规则参数说明
     name: Cloud Key     #规则名称(必须填写)
