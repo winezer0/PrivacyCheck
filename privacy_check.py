@@ -11,7 +11,7 @@ from typing import List, Dict, Tuple, Any
 from utils import validate_rules, get_files_with_filter, file_encoding, print_progress, \
     load_rules_config, read_file_safe, load_json, read_in_chunks, print_rules_info, init_cacha_dict, CACHE_RESULT, \
     CACHE_UPDATE, save_cache_if_needed, write_dict_to_csv, write_dict_to_json, strip_string, new_dicts, \
-    group_dicts_by_key, filter_rules, rules_size
+    group_dicts_by_key, filter_rules, rules_size, convert_yaml_to_json, check_keys_is_valid, path_is_exist
 
 
 class PrivacyChecker:
@@ -167,7 +167,7 @@ def args_parser(excludes_ext, allowed_keys):
     parser = argparse.ArgumentParser(description='Privacy information detection tool')
     parser.add_argument('-r', '--rules', dest='rules_file', default='privacy_check.yaml',
                         help='规则文件的路径(默认值：privacy_check.yaml)')
-    parser.add_argument('-t', '--target', dest='target', required=True,
+    parser.add_argument('-t', '--target', dest='target', default=None,
                         help='待扫描的项目目标文件或目录')
     parser.add_argument('-p', '--project-name', dest='project_name', default='default_project',
                         help='项目名称, 影响默认输出文件名和缓存文件名')
@@ -209,6 +209,10 @@ def args_parser(excludes_ext, allowed_keys):
     parser.add_argument('-b','--block-matches', dest='block_matches', type=str, default=None, nargs='+',
                         help='对匹配结果中的match键值进行黑名单关键字列表匹配剔除, 建议在匹配较大项目时搭配缓存功能使用.')
 
+    # 辅助工具 实现配置文件转换
+    parser.add_argument('-c','--convert', dest='convert', nargs=2, metavar=('YamlFile', 'JsonFile'),
+                        help='将 YAML 格式配置文件转换为 JSON 格式，用法: --convert input.yaml output.json')
+
     args = parser.parse_args()
     return args
 
@@ -222,18 +226,29 @@ def main():
     allowed_keys = {"file", "group", "rule_name", "match", "context", "position", "line_number", "sensitive"}
 
     args = args_parser(excludes_ext, allowed_keys)
+    
+    # 处理配置文件转换
+    if args.convert:
+        input_file, output_file = args.convert
+        convert_yaml_to_json(input_file, output_file)
+        sys.exit(1)
+
+    # 更新用户指定的后缀类型
+    excludes_ext.update(args.exclude_ext)
     output_format = args.output_format
     output_file = args.output_file
     project_name = args.project_name
-    # 更新用户指定的后缀类型
-    excludes_ext.update(args.exclude_ext)
+    target_path = args.target
+
+    # 检测 target_path 合法性
+    if not path_is_exist(target_path):
+        print(f"Error: Path {target_path}] does not exist!!!")
+        sys.exit(1)
 
     # 校验 output_keys 合法性
     output_keys = args.output_keys or []
     if output_keys:
-        invalid_keys = [k for k in output_keys if k not in allowed_keys]
-        if invalid_keys:
-            print(f"[错误] --output-keys 存在非法字段: {invalid_keys} 仅允许以下字段: {sorted(allowed_keys)}")
+        if not check_keys_is_valid(allowed_keys, output_keys):
             sys.exit(1)
 
     # 进行实际使用的规则提取
@@ -250,7 +265,7 @@ def main():
                              exclude_ext=excludes_ext,
                              limit_size=args.limit_size)
 
-    check_results = checker.scan(args.target,
+    check_results = checker.scan(target_path,
                                  max_workers=args.workers,
                                  save_cache=args.save_cache,
                                  chunk_mode=args.chunk_mode)

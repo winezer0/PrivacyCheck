@@ -1,14 +1,12 @@
 import csv
-import json
 import os
 import re
 import time
 from collections import defaultdict
 from datetime import timedelta
 from typing import Tuple, List, Dict, Any
-
 import yaml
-
+import json
 
 # 　Cache FIlE Key
 CACHE_RESULT = "result"
@@ -203,12 +201,19 @@ def print_progress(completed_task, total_task, start_time):
 
 
 def load_rules_config(config_path: str) -> Dict:
-    with open(config_path, 'r', encoding='utf-8') as f:
-        config_info = yaml.safe_load(f)
-        # 当前输入的是原始HAE规则,需要提取rules节点信息
-        if isinstance(config_info, dict) and 'rules' in config_info.keys():
-            return config_info.get('rules')
-        return config_info
+    # 根据文件扩展名决定加载方式
+    if config_path.lower().endswith('.json'):
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config_info = json.load(f)
+    else:
+        # 默认使用 yaml 加载
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config_info = yaml.safe_load(f)
+    
+    # 当前输入的是原始HAE规则,需要提取rules节点信息
+    if isinstance(config_info, dict) and 'rules' in config_info.keys():
+        return config_info.get('rules')
+    return config_info
 
 
 def read_file_safe(filepath: str) -> Tuple[str, str]:
@@ -428,9 +433,38 @@ def filter_rules(group_infos, filter_groups: List[str], filter_names: List[str],
 
 
 def rules_size(rules_info):
+    """计算实际规则数量"""
     size = 0
     if isinstance(rules_info, dict):
         size += sum([len(x) for x in rules_info.values()])
     if isinstance(rules_info, list):
         size += sum([len(x.get('rule')) for x in rules_info])
     return size
+
+
+def convert_yaml_to_json(input_yaml, output_json):
+    """将指定的 YAML 文件转换为 JSON 格式"""
+    status = True
+    error = None
+    try:
+        # 加载 YAML 文件
+        with open(input_yaml, 'r', encoding='utf-8') as f:
+            yaml_data = yaml.safe_load(f)
+        # 保存为 JSON 文件
+        with open(output_json, 'w+', encoding='utf-8') as f:
+            json.dump(yaml_data, f, ensure_ascii=False, indent=2)
+        print(f"Yaml To Json convert success: {input_yaml} -> {output_json}")
+    except Exception as e:
+        print(f"Yaml To Json convert failed: {input_yaml} -> {e}")
+        status = False
+        error = str(e)
+    return status, error
+
+
+def check_keys_is_valid(allowed_keys, output_keys):
+    """检查输出字段是否都在允许的字段范围内"""
+    invalid_keys = [k for k in output_keys if k not in allowed_keys]
+    if invalid_keys:
+        print(f"[错误] --output-keys 存在非法字段: {invalid_keys} 仅允许以下字段: {sorted(allowed_keys)}")
+        return False
+    return True
