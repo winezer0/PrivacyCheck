@@ -5,8 +5,12 @@ import time
 from collections import defaultdict
 from datetime import timedelta
 from typing import Tuple, List, Dict, Any
-import yaml
 import json
+
+try:
+    import yaml
+except ImportError:
+    print("[Warning] Missing dependency: PyYAML is not installed. Please: pip install pyyaml or use json config.")
 
 # 　Cache FIlE Key
 CACHE_RESULT = "result"
@@ -14,6 +18,22 @@ CACHE_UPDATE = "last_update"
 
 def init_cacha_dict():
     return {CACHE_RESULT: {}, CACHE_UPDATE: None}
+
+
+def load_rules_config(config_path: str) -> Dict:
+    # 根据文件扩展名决定加载方式
+    if config_path.lower().endswith('.json'):
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config_info = json.load(f)
+    else:
+        # 默认使用 yaml 加载
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config_info = yaml.safe_load(f)
+
+    # 当前输入的是原始HAE规则,需要提取rules节点信息
+    if isinstance(config_info, dict) and 'rules' in config_info.keys():
+        return config_info.get('rules')
+    return config_info
 
 
 def save_cache_if_needed(cache_file, cache_data, cache_time, last_cache_time, save_interval, force_store) -> Tuple:
@@ -198,22 +218,6 @@ def print_progress(completed_task, total_task, start_time):
     remaining_delta = timedelta(seconds=int(remaining))
     print(f"\r当前进度: {completed_task}/{total_task} ({(completed_task / total_task * 100):.2f}%) "
           f"已用时长: {str(elapsed_delta)} 预计剩余: {str(remaining_delta)}", end='')
-
-
-def load_rules_config(config_path: str) -> Dict:
-    # 根据文件扩展名决定加载方式
-    if config_path.lower().endswith('.json'):
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config_info = json.load(f)
-    else:
-        # 默认使用 yaml 加载
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config_info = yaml.safe_load(f)
-    
-    # 当前输入的是原始HAE规则,需要提取rules节点信息
-    if isinstance(config_info, dict) and 'rules' in config_info.keys():
-        return config_info.get('rules')
-    return config_info
 
 
 def read_file_safe(filepath: str) -> Tuple[str, str]:
