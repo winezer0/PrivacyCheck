@@ -3,6 +3,12 @@
 直接兼容HAE规则的静态配置文件敏感信息提取(代码审计)工具
 
 
+## 免责声明
+继续阅读文章或使用工具视为您已同意NOVASEC免责声明
+
+[NOVASEC免责声明](https://mp.weixin.qq.com/s/iRWRVxkYu7Fx5unxA34I7g)
+
+
 ## 适用场景
 1. 本地 网页源码、小程序源码、HTML源码等 敏感信息提取、URl信息提取 (完全类似离线版HAE提取)
 
