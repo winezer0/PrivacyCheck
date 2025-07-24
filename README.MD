@@ -1,12 +1,26 @@
-# privacy_check
+# privacy_check（停止更新）
 
 直接兼容HAE规则的静态配置文件敏感信息提取(代码审计)工具
 
 
 ## 免责声明
-继续阅读文章或使用工具视为您已同意NOVASEC免责声明
+继续阅读文章或使用工具视为您已同意 [NOVASEC免责声明](https://mp.weixin.qq.com/s/iRWRVxkYu7Fx5unxA34I7g)
 
-[NOVASEC免责声明](https://mp.weixin.qq.com/s/iRWRVxkYu7Fx5unxA34I7g)
+
+
+## 重构版本
+
+privacy_check Python 版本代码和功能均已经运行稳定，但由于体系结构和Python本身的性能问题，对于超过几十万的扫描可能会导致卡顿，因此重新配编写了GO版privacy_check。
+
+Go版本功能与Python版本基本相同，如果没有高性能要求，本项目已经完全够用了。当前工具好像用户需求也不多，主要是内部自用，因此Go版本也暂不打算开源。
+
+有需求的用户可以考虑加入[**圈子|星球**]进行下载PrivacyCheckGo， 星球内有很多日常使用的工具，该程序无License限制。
+
+
+
+![Fenchuan](https://raw.githubusercontent.com/winezer0/mypics/refs/heads/main/fenchuan1.jpg)
+
+
 
 
 ## 适用场景
@@ -80,7 +94,7 @@ options:
     context_left: 50    # 匹配结果 向左扩充50个字符 (sensitive规则默认50 非sensitive规则默认0)
     context_right: 50   # 匹配结果 向左扩充50个字符 (sensitive规则默认50 非sensitive规则默认0)
                         # context_left: 50 context_right: 50  表示在正则匹配结果后 向左右分别扩充50个字符
-
+    
     # s_regex: ''         # HAE二次匹配规则 (未实现)
     # format: '{0}'       # HAE结果提取格式 (未实现)
     # color: gray         # HAE结果颜色显示 (未实现)
@@ -100,3 +114,7 @@ options:
 如需获取更多信息、技术支持或定制服务，请通过以下方式联系我们：
 NOVASEC微信公众号或通过社交信息联系开发者【酒零】
 ![NOVASEC0](https://raw.githubusercontent.com/winezer0/mypics/refs/heads/main/NOVASEC0.jpg)
+
+---
+
+privacy_check - 为安全专业人员打造的快速敏感信息审计工具*
